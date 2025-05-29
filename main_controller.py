@@ -25,13 +25,30 @@ except ImportError as e:
 # --- Configuration ---
 # TODO: Replace with argparse or a dedicated configuration file (e.g., YAML/JSON) for user input.
 
-# Grand Canyon Test Area (UTM Zone 11N)
-AOI_BBOX_WGS84 = (-112.1100, 36.0550, -112.1000, 36.0600) # W, S, E, N
-TARGET_UTM_EPSG = "EPSG:32611" # UTM Zone 11N for Grand Canyon.
+# --- Input Mode ---
+# INPUT_MODE = "BBOX"      # Use direct bounding box coordinates
+INPUT_MODE = "PLACENAME" # Use place name geocoding and distance
 
-# Berlin Test Area (UTM Zone 32N)
-# AOI_BBOX_WGS84 = (13.0, 52.3, 13.7, 52.6)
-# TARGET_UTM_EPSG = "EPSG:32632" # UTM Zone 32N for Berlin.
+# Parameters for PLACENAME mode
+PLACE_NAME_QUERY = "Mount Everest" 
+# PLACE_NAME_QUERY = "Eiffel Tower, Paris"
+# PLACE_NAME_QUERY = "Denver, Colorado"
+DISTANCE_KM_AROUND_PLACE = 15 # Kilometers around the geocoded center point
+
+# Parameters for BBOX mode (still used if INPUT_MODE is "BBOX")
+AOI_BBOX_WGS84_MANUAL = (86.85, 27.90, 87.00, 28.05) # Around Everest for comparison if BBOX mode
+# AOI_BBOX_WGS84_MANUAL = (-112.1100, 36.0550, -112.1000, 36.0600) # Small Grand Canyon
+
+# TARGET_UTM_EPSG still needs to be set appropriately for the AOI
+# For Mount Everest (approx 27.9N, 86.9E), UTM Zone 45N
+TARGET_UTM_EPSG = "EPSG:32645" 
+# For Denver (approx 39.7N, 104.9W), UTM Zone 13N
+# TARGET_UTM_EPSG = "EPSG:32613" 
+# For Paris (approx 48.8N, 2.3E), UTM Zone 31N
+# TARGET_UTM_EPSG = "EPSG:32631"
+# For Grand Canyon example area (approx 36.0N, 112.1W), UTM Zone 12N (or 11N on edge)
+# TARGET_UTM_EPSG = "EPSG:32612" # More accurate for -112.1W
+# TARGET_UTM_EPSG = "EPSG:32611" # As used before for -112.1W
 
 DEM_TYPE_API = "SRTMGL1" # For OpenTopography: SRTMGL1, NASADEM, COP30, etc.
 
@@ -45,12 +62,12 @@ OUTPUT_HEIGHTMAP_FORMAT = "BOTH" # Options: "PNG", "RAW", "BOTH"
 # DESIRED_PIXEL_RESOLUTION_M = 10.0 # Example: Uncomment to enable future resampling logic
 
 # Setup main logger using the imported setup_logger
-# If logger_setup.py itself failed to import, this line would not be reached.
 logger = setup_logger("MainController", level="INFO")
 # --- End Configuration ---
 
 def main():
     logger.info("Starting Real-World Terrain to Unreal Engine Workflow.")
+    logger.info(f"Input Mode: {INPUT_MODE}")
 
     # Create output directory if it doesn't exist
     if not os.path.exists(OUTPUT_DIR):
@@ -59,10 +76,41 @@ def main():
             logger.info(f"Created output directory: {OUTPUT_DIR}")
         except OSError as e:
             logger.error(f"Failed to create output directory {OUTPUT_DIR}: {e}")
-            return # Essential directory, exit if cannot create
+            return 
 
+    # --- Determine AOI Bounding Box ---
+    aoi_bbox_wgs84_to_use = None
+
+    if INPUT_MODE.upper() == "PLACENAME":
+        logger.info(f"Attempting to determine AOI from place name: '{PLACE_NAME_QUERY}' with distance {DISTANCE_KM_AROUND_PLACE} km.")
+        
+        center_coords = coordinate_utils.geocode_place_name(PLACE_NAME_QUERY)
+        if not center_coords:
+            logger.error(f"Could not geocode place name '{PLACE_NAME_QUERY}'. Exiting workflow.")
+            return
+        
+        lat, lon = center_coords
+        aoi_bbox_wgs84_to_use = coordinate_utils.calculate_bbox_from_center_and_distance(
+            lat, lon, DISTANCE_KM_AROUND_PLACE
+        )
+        if not aoi_bbox_wgs84_to_use:
+            logger.error(f"Could not calculate bounding box for '{PLACE_NAME_QUERY}'. Exiting workflow.")
+            return
+        logger.info(f"Determined BBox for '{PLACE_NAME_QUERY}' ({DISTANCE_KM_AROUND_PLACE}km radius): {aoi_bbox_wgs84_to_use}")
+
+    elif INPUT_MODE.upper() == "BBOX":
+        logger.info(f"Using manually specified BBox: {AOI_BBOX_WGS84_MANUAL}")
+        aoi_bbox_wgs84_to_use = AOI_BBOX_WGS84_MANUAL
+    else:
+        logger.error(f"Invalid INPUT_MODE: '{INPUT_MODE}'. Must be 'BBOX' or 'PLACENAME'. Exiting.")
+        return
+
+    if aoi_bbox_wgs84_to_use is None: # Should be caught by earlier returns, but as a safeguard
+        logger.error("AOI Bounding Box could not be determined. Exiting.")
+        return
+            
     # --- 1. API Data Fetching ---
-    logger.info(f"Step 1: Fetching DEM data ({DEM_TYPE_API}) for BBOX {AOI_BBOX_WGS84}...")
+    logger.info(f"Step 1: Fetching DEM data ({DEM_TYPE_API}) for BBOX {aoi_bbox_wgs84_to_use}...") # Use determined BBOX
     raw_dem_path = os.path.join(OUTPUT_DIR, RAW_DEM_FILENAME)
     
     ot_api_key = None
@@ -75,13 +123,12 @@ def main():
             logger.info("OpenTopography API key retrieved successfully.")
     except Exception as e:
         logger.error(f"Error retrieving OpenTopography API key via config_manager: {e}")
-        # Decide if to proceed without a key or exit. For now, proceed and let api_handler manage.
 
     if not api_handler.fetch_opentopography_data(
         dem_type=DEM_TYPE_API,
-        bbox=AOI_BBOX_WGS84,
+        bbox=aoi_bbox_wgs84_to_use, # USE THE DETERMINED BBOX HERE
         output_file=raw_dem_path,
-        api_key_override=ot_api_key # Pass the fetched key (can be None)
+        api_key_override=ot_api_key 
     ):
         logger.error(f"Failed to download DEM data to {raw_dem_path}. Exiting workflow.")
         return
@@ -90,13 +137,13 @@ def main():
     # --- 2. DEM Processing (Initial Read & Info) ---
     logger.info(f"Step 2: Reading and getting info from downloaded DEM: {raw_dem_path}...")
     dem_array, dem_profile, dem_nodata_val = dem_processor.get_dem_info_and_data(raw_dem_path)
-    if dem_array is None or dem_profile is None: # dem_nodata_val can be None legitimately
+    if dem_array is None or dem_profile is None: 
         logger.error("Failed to read or process the downloaded DEM. Exiting workflow.")
         return
     
     dem_pixel_width = dem_profile.get('width')
     dem_pixel_height = dem_profile.get('height')
-    source_crs_str = str(dem_profile.get('crs', 'Unknown')) # Get source CRS from the GeoTIFF
+    source_crs_str = str(dem_profile.get('crs', 'Unknown')) 
     
     if not dem_pixel_width or not dem_pixel_height:
         logger.error(f"DEM profile missing width/height information. Profile: {dem_profile}")
@@ -106,9 +153,9 @@ def main():
     logger.debug(f"DEM Affine Transform: {dem_profile.get('transform')}")
 
     # --- 3. Coordinate Transformation & Metric Size of AOI ---
-    logger.info(f"Step 3: Transforming AOI BBox to target CRS ({TARGET_UTM_EPSG}) for metric sizing...")
+    logger.info(f"Step 3: Transforming AOI BBox ({aoi_bbox_wgs84_to_use}) to target CRS ({TARGET_UTM_EPSG}) for metric sizing...")
     projected_aoi_bbox = coordinate_utils.transform_bbox_to_crs(
-        AOI_BBOX_WGS84, "EPSG:4326", TARGET_UTM_EPSG
+        aoi_bbox_wgs84_to_use, "EPSG:4326", TARGET_UTM_EPSG # USE THE DETERMINED BBOX
     )
     if not projected_aoi_bbox:
         logger.error("Failed to project AOI bounding box. Exiting workflow.")
@@ -123,28 +170,18 @@ def main():
 
     # --- 4. Determine Effective Heightmap Pixel Resolution ---
     logger.info("Step 4: Determining effective heightmap pixel resolution from downloaded DEM...")
-    if dem_pixel_width == 0 or dem_pixel_height == 0: # Should have been caught by check above
+    if dem_pixel_width == 0 or dem_pixel_height == 0: 
         logger.error("DEM pixel width or height is zero. Cannot calculate resolution.")
         return
 
-    # Using width for resolution calculation, common for north-up DEMs.
-    # This assumes the downloaded DEM from API covers the exact AOI.
     heightmap_pixel_resolution_m = metric_width_aoi_m / dem_pixel_width
-    height_pixel_resolution_m_check = metric_height_aoi_m / dem_pixel_height # For logging/comparison
+    height_pixel_resolution_m_check = metric_height_aoi_m / dem_pixel_height 
     logger.info(f"Calculated effective heightmap pixel resolution (width-based): {heightmap_pixel_resolution_m:.3f} m/pixel")
     logger.info(f"Calculated effective heightmap pixel resolution (height-based): {height_pixel_resolution_m_check:.3f} m/pixel")
     
-    # TODO: Implement resampling if DESIRED_PIXEL_RESOLUTION_M is set and different from calculated.
-    # If resampling occurs, dem_array, dem_pixel_width, dem_pixel_height would change,
-    # and heightmap_pixel_resolution_m would become DESIRED_PIXEL_RESOLUTION_M.
-    # For now, we use the native resolution of the downloaded segment.
-
     # --- 5. Scaling Elevation Data ---
     logger.info("Step 5: Scaling elevation data to uint16 (0-65535)...")
-    # dem_nodata_val is the original nodata value. scale_to_uint16 expects np.nan if float array has nans.
-    # get_dem_info_and_data already converts nodata to np.nan in float arrays.
     nodata_input_for_scaling = np.nan if np.issubdtype(dem_array.dtype, np.floating) else dem_nodata_val
-
     scaled_array_uint16, actual_min_elev, actual_max_elev = dem_processor.scale_to_uint16(
         dem_array, nodata_val_input=nodata_input_for_scaling 
     )
@@ -195,12 +232,11 @@ def main():
     # --- 8. Report Generation ---
     logger.info("Step 8: Generating Unreal Engine import report...")
     report_path = os.path.join(OUTPUT_DIR, UE_REPORT_FILENAME)
-    # Use the dimensions of the final scaled_array_uint16 for the report
-    final_heightmap_dims = (scaled_array_uint16.shape[1], scaled_array_uint16.shape[0]) # width, height
+    final_heightmap_dims = (scaled_array_uint16.shape[1], scaled_array_uint16.shape[0]) 
     unreal_preparer.generate_ue_import_report(
         ue_params=ue_params,
         heightmap_dims=final_heightmap_dims, 
-        heightmap_format=OUTPUT_HEIGHTMAP_FORMAT, # Could be more specific if only one saved
+        heightmap_format=OUTPUT_HEIGHTMAP_FORMAT, 
         report_path=report_path
     )
     logger.info(f"Unreal Engine import guide saved to: {report_path}")
@@ -208,12 +244,4 @@ def main():
     logger.info("Workflow completed successfully!")
 
 if __name__ == '__main__':
-    # This allows the script to be run directly.
-    # In a more complex application, main() might be called from an external entry point.
-    
-    # Example: Add a specific config.json for the main_controller if needed for testing
-    # This is just illustrative; config_manager should handle its own default paths.
-    # if not os.path.exists(config_manager.CONFIG_FILE_PATH):
-    #     logger.info(f"No {config_manager.CONFIG_FILE_PATH} found. API calls might rely on environment variables or fail.")
-
     main()

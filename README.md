@@ -7,6 +7,9 @@ This Python tool facilitates the recreation of real-world locations within virtu
 ## 2. Features
 
 *   Fetches Digital Elevation Model (DEM) data from online sources (currently supports OpenTopography API).
+*   Determines Area of Interest (AOI) via:
+    *   Direct bounding box (latitude, longitude) input.
+    *   Place name geocoding (e.g., "Mount Everest") and a specified distance to define the surrounding area.
 *   Processes raw DEM data:
     *   Reads standard GeoTIFF files.
     *   Scales elevation values to the 16-bit unsigned integer range (0-65535) required by Unreal Engine.
@@ -29,6 +32,7 @@ This Python tool facilitates the recreation of real-world locations within virtu
 *   **NumPy**: For numerical computation, especially array manipulation for raster data.
 *   **Pillow (PIL Fork)**: For image processing, particularly saving NumPy arrays as 16-bit PNG files.
 *   **Shapely**: (As a dependency of Rasterio or used directly) For geometric operations.
+*   **Geopy**: For geocoding place names (converting addresses/names to coordinates) and calculating distances on Earth's surface.
 *   **unittest & unittest.mock**: For unit testing.
 
 ## 4. Project Structure Overview
@@ -39,7 +43,7 @@ This Python tool facilitates the recreation of real-world locations within virtu
 │   ├── main_controller.py        # Orchestrates the entire workflow
 │   ├── api_handler.py            # Handles interactions with elevation data APIs
 │   ├── dem_processor.py          # GIS and raster processing tasks
-│   ├── coordinate_utils.py       # Coordinate transformation functions
+│   ├── coordinate_utils.py       # Coordinate transformation and geocoding functions
 │   ├── unreal_preparer.py        # Calculates UE specific parameters and generates reports
 │   ├── config_manager.py         # Manages configuration (API keys, paths)
 │   ├── logger_setup.py           # Configures logging
@@ -50,8 +54,8 @@ This Python tool facilitates the recreation of real-world locations within virtu
 │   ├── test_config_manager.py
 │   ├── test_coordinate_utils.py
 │   ├── ... (other test files)
-├── output_data_main/             # Default directory for generated output files
-├── output_data_test/             # Directory for test output files
+├── output_data_main_controller/  # Default directory for generated output files from main_controller
+├── output_data_test/             # Directory for test output files from individual module tests
 ├── README.md                     # This file
 ├── requirements.txt              # Python dependencies
 ├── LICENSE                       # Project license file
@@ -117,13 +121,25 @@ This Python tool facilitates the recreation of real-world locations within virtu
 
 The primary entry point for the tool is `main_controller.py`.
 
-1.  **Modify Parameters in `main_controller.py`**:
-    Open `main_controller.py` and adjust the following parameters in the `# --- Configuration ---` section:
-    *   `AOI_BBOX_WGS84`: The Area of Interest as a tuple `(west_longitude, south_latitude, east_longitude, north_latitude)` in WGS84 decimal degrees.
-    *   `TARGET_UTM_EPSG`: The EPSG code for the target UTM zone corresponding to your AOI (e.g., `"EPSG:32611"` for UTM Zone 11N). You can find appropriate EPSG codes from sites like [epsg.io](https://epsg.io/).
-    *   `DEM_TYPE_API`: The DEM type to request from the API (e.g., for OpenTopography: `"SRTMGL1"`, `"NASADEM"`, `"COP30"`). Check API documentation for available types.
-    *   `OUTPUT_DIR`: Directory where all output files will be saved.
-    *   `OUTPUT_HEIGHTMAP_FORMAT`: Choose `"PNG"`, `"RAW"`, or `"BOTH"`.
+1.  **Configure Input Parameters in `main_controller.py`**:
+    Open `main_controller.py` and adjust parameters in the `# --- Configuration ---` and `# --- Input Mode ---` sections:
+
+    *   **`INPUT_MODE`**: Set to either `"BBOX"` or `"PLACENAME"`.
+        *   `"BBOX"`: Uses manually defined bounding box coordinates via `AOI_BBOX_WGS84_MANUAL`.
+        *   `"PLACENAME"`: Uses a place name (`PLACE_NAME_QUERY`), geocodes it to a center point, and calculates a bounding box based on `DISTANCE_KM_AROUND_PLACE`.
+
+    *   **If `INPUT_MODE = "PLACENAME"`**:
+        *   `PLACE_NAME_QUERY`: The place name string to geocode (e.g., `"Mount Everest"`, `"Denver, Colorado"`).
+        *   `DISTANCE_KM_AROUND_PLACE`: The distance in kilometers to extend the bounding box around the geocoded center point (e.g., `15`).
+
+    *   **If `INPUT_MODE = "BBOX"`**:
+        *   `AOI_BBOX_WGS84_MANUAL`: The Area of Interest as a tuple `(west_longitude, south_latitude, east_longitude, north_latitude)` in WGS84 decimal degrees (e.g., `(86.85, 27.90, 87.00, 28.05)`).
+
+    *   **Required for all modes**:
+        *   `TARGET_UTM_EPSG`: The EPSG code for the target UTM zone corresponding to your AOI (e.g., `"EPSG:32645"` for UTM Zone 45N which covers Mount Everest). This is crucial for correct scaling in Unreal Engine and **must be set accurately by the user based on the final AOI's location.** You can find appropriate EPSG codes from sites like [epsg.io](https://epsg.io/).
+        *   `DEM_TYPE_API`: The DEM type for the API (e.g., for OpenTopography: `"SRTMGL1"`).
+        *   `OUTPUT_DIR`: Directory for output files (default: `./output_data_main_controller`).
+        *   `OUTPUT_HEIGHTMAP_FORMAT`: Choose `"PNG"`, `"RAW"`, or `"BOTH"`.
 
 2.  **Run the Script**:
     ```bash
@@ -134,20 +150,21 @@ The primary entry point for the tool is `main_controller.py`.
 ## 8. Workflow Overview
 
 The `main_controller.py` script performs the following steps:
-1.  **Fetches DEM Data**: Downloads raw DEM data (usually GeoTIFF) for the specified AOI from the configured API.
-2.  **Reads DEM Info**: Loads the downloaded DEM, extracting its properties (dimensions, CRS, NoData values).
-3.  **Calculates Metric Size**: Transforms the AOI's WGS84 bounding box to the target UTM CRS to determine its precise width and height in meters.
-4.  **Determines Pixel Resolution**: Calculates the effective ground resolution (meters/pixel) of the downloaded DEM based on its pixel dimensions and the AOI's metric size.
-5.  **Scales Elevation Data**: Converts the DEM's elevation values (which are typically floats representing meters) into a 0-65535 unsigned 16-bit integer range. This step also captures the actual minimum and maximum elevation values of the AOI.
-6.  **Saves Heightmap**: Saves the scaled 16-bit data as:
+1.  **Determines AOI**: Based on `INPUT_MODE`, either uses a predefined bounding box or geocodes a place name and calculates a bounding box.
+2.  **Fetches DEM Data**: Downloads raw DEM data (usually GeoTIFF) for the determined AOI from the configured API.
+3.  **Reads DEM Info**: Loads the downloaded DEM, extracting its properties (dimensions, CRS, NoData values).
+4.  **Calculates Metric Size**: Transforms the AOI's WGS84 bounding box to the target UTM CRS to determine its precise width and height in meters.
+5.  **Determines Pixel Resolution**: Calculates the effective ground resolution (meters/pixel) of the downloaded DEM based on its pixel dimensions and the AOI's metric size.
+6.  **Scales Elevation Data**: Converts the DEM's elevation values (which are typically floats representing meters) into a 0-65535 unsigned 16-bit integer range. This step also captures the actual minimum and maximum elevation values of the AOI.
+7.  **Saves Heightmap**: Saves the scaled 16-bit data as:
     *   A 16-bit grayscale PNG file.
-    *   And/or a 16-bit raw binary file (`.r16`) with an accompanying JSON sidecar file (e.g., `heightmap_ue_raw.json`) detailing its dimensions, bit depth, and original elevation range.
-7.  **Calculates UE Parameters**: Determines the exact Scale X, Y, Z, and Location Z values needed for Unreal Engine import.
-8.  **Generates Report**: Creates a text file summarizing the input parameters, processed data characteristics, and the calculated Unreal Engine import settings.
+    *   And/or a 16-bit raw binary file (`.r16`) with an accompanying JSON sidecar file.
+8.  **Calculates UE Parameters**: Determines the exact Scale X, Y, Z, and Location Z values needed for Unreal Engine import.
+9.  **Generates Report**: Creates a text file summarizing the input parameters, processed data characteristics, and the calculated Unreal Engine import settings.
 
 ## 9. Output Explanation
 
-After a successful run, you will find the following files in your specified `OUTPUT_DIR`:
+After a successful run, you will find the following files in your specified `OUTPUT_DIR` (e.g., `./output_data_main_controller`):
 *   `downloaded_dem.tif`: The original DEM file downloaded from the API.
 *   `heightmap_ue.png` (if PNG format selected): The processed 16-bit grayscale heightmap ready for Unreal Engine.
 *   `heightmap_ue_raw.r16` (if RAW format selected): The raw 16-bit heightmap data.
@@ -156,7 +173,7 @@ After a successful run, you will find the following files in your specified `OUT
     *   `height`: Height of the heightmap in pixels.
     *   `bbp`: Bits per pixel (typically 16).
     *   `format`: Data type of the raw pixels (e.g., "uint16").
-    *   `byte_order`: Byte order of the raw data (e.g., "little" for little-endian, "big" for big-endian, or "native").
+    *   `byte_order`: Byte order of the raw data (e.g., "little" for little-endian, "big" for big-endian, or "native" if system-dependent).
     *   `min_elevation_original`: The original minimum elevation (in meters) of the Area of Interest that corresponds to the value 0 in the scaled heightmap.
     *   `max_elevation_original`: The original maximum elevation (in meters) of the Area of Interest that corresponds to the value 65535 in the scaled heightmap.
 *   `unreal_engine_import_guide.txt`: A text file with all the calculated parameters (Scale X, Y, Z; Location Z) and notes for importing the landscape into Unreal Engine.
@@ -202,6 +219,7 @@ To run the unit tests:
 ## 13. Extra Resources
 
 *   [OpenTopography API Documentation](https://opentopography.org/developers)
+*   [Nominatim Usage Policy](https://operations.osmfoundation.org/policies/nominatim/): If using the place name geocoding feature, please be aware of Nominatim's usage policy (no heavy use, provide a valid User-Agent). This tool sets a default User-Agent but for extensive use, review their terms.
 *   [Unreal Engine Landscape Technical Guide](https://docs.unrealengine.com/en-US/BuildingWorlds/Landscape/TechnicalGuide/index.html)
 *   [Unreal Engine Georeferencing Plugin](https://docs.unrealengine.com/en-US/BuildingWorlds/Georeferencing/index.html)
 *   [Rasterio Documentation](https://rasterio.readthedocs.io/en/stable/)
@@ -215,11 +233,11 @@ To run the unit tests:
 **v1.0.0 (Current Version) - 2023-10-27**
 *   Initial release.
 *   Core functionality:
-    *   Fetch DEM from OpenTopography.
+    *   Fetch DEM from OpenTopography based on BBox or Place Name + distance.
     *   Process DEM to 16-bit heightmap (PNG & RAW+JSON).
     *   Calculate UE scale and location parameters.
     *   Generate import report.
-*   Modules: `main_controller`, `api_handler`, `dem_processor`, `coordinate_utils`, `unreal_preparer`, `config_manager`, `logger_setup`.
+*   Modules: `main_controller`, `api_handler`, `dem_processor`, `coordinate_utils` (with geocoding & bbox from center), `unreal_preparer`, `config_manager`, `logger_setup`.
 *   Basic unit tests for `config_manager`, `coordinate_utils`, `unreal_preparer`.
 
 ## 15. License

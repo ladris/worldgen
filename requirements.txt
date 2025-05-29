@@ -20,6 +20,9 @@ Pillow>=8.0.0,<10.4.0
 # For geometric operations (often a dependency of rasterio, but good to list)
 Shapely>=1.7.0,<2.1.0
 
+# For geocoding place names and distance calculations
+geopy>=2.0.0,<2.5.0
+
 # Note: Ensure GDAL is installed on your system for Rasterio to work correctly.
 # The versions listed here are a baseline; newer compatible versions may also work.
 # It's recommended to use a virtual environment.
