@@ -1,0 +1,25 @@
+# Core dependencies for Real-World Terrain to Unreal Engine Importer
+
+# For HTTP requests to APIs
+requests>=2.25.0,<3.0.0
+
+# For geospatial raster processing
+# Rasterio itself depends on GDAL, which needs to be installed separately.
+# See README.md for GDAL installation guidance.
+rasterio>=1.2.0,<1.4.0 
+
+# For coordinate reference system transformations
+pyproj>=3.0.0,<3.7.0
+
+# For numerical operations, especially on arrays
+numpy>=1.20.0,<1.27.0
+
+# For image manipulation (saving 16-bit PNGs)
+Pillow>=8.0.0,<10.4.0
+
+# For geometric operations (often a dependency of rasterio, but good to list)
+Shapely>=1.7.0,<2.1.0
+
+# Note: Ensure GDAL is installed on your system for Rasterio to work correctly.
+# The versions listed here are a baseline; newer compatible versions may also work.
+# It's recommended to use a virtual environment.
