@@ -1,0 +1,29 @@
+# Configuration files
+config.json
+credentials.json
+secrets.yaml
+
+# Python specific
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+*.egg-info/
+.installed.cfg
+*.egg
+dist/
+build/
+*.whl
+
+# IDE and editor specific
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS specific
+.DS_Store
+Thumbs.db

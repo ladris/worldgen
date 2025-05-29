@@ -1,0 +1,13 @@
+{
+  "api_keys": {
+    "OpenTopography": "YOUR_OPENTOPOGRAPHY_API_KEY_HERE",
+    "AnotherAPI": "YOUR_OTHER_API_KEY_HERE"
+  },
+  "settings": {
+    "default_output_path": "./output_data",
+    "default_dem_resolution": 30,
+    "max_download_retries": 3,
+    "temp_directory": "/tmp/gis_pipeline",
+    "unreal_project_path": "C:/Users/YourUser/Documents/Unreal Projects/MyProject"
+  }
+}

@@ -1,0 +1,26 @@
+Unreal Engine Landscape Import Parameters Report
+========================================
+Source Data Overview (meters):
+  - Min Elevation of AOI (used for black in heightmap): 100.000 m
+  - Max Elevation of AOI (used for white in heightmap): 611.992 m
+  - Elevation Span of AOI: 511.992 m
+  - Heightmap Pixel Ground Resolution: 2.000 m/pixel
+----------------------------------------
+Calculated Unreal Engine Import Settings (UE Units = cm):
+  - Landscape Scale X: 200.000000
+  - Landscape Scale Y: 200.000000
+  - Landscape Scale Z: 100.000000
+  - Landscape Actor Location Z: 35600.000
+    (Note: This Z location for the landscape actor ensures that areas corresponding to actual_min_elev_aoi_m (0 in the 16-bit heightmap) are positioned at that elevation in UE.)
+----------------------------------------
+Heightmap File Information:
+  - Dimensions (Width x Height): 1009 x 1009 pixels
+  - Format: PNG16 (Grayscale)
+----------------------------------------
+Notes for Unreal Engine Import:
+1. Ensure your 16-bit heightmap file (e.g., Grayscale PNG or .r16) is ready.
+2. In UE Landscape mode, choose 'Import from File' and select your heightmap.
+3. Set 'Fit to Data' for heightmap resolution or manually input dimensions.
+4. Input the 'Landscape Scale X, Y, Z' values above into the UE import dialog.
+5. After the landscape is created, set its 'Location Z' in the Transform section to the 'Landscape Actor Location Z' value above.
+6. Verify UE documentation for recommended landscape section sizes based on your heightmap dimensions (e.g., 1x1 components, 127x127 quads per section).
