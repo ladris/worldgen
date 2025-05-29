@@ -2,6 +2,7 @@
 import os
 import sys
 import logging # Fallback for initial logger setup if logger_setup fails
+import numpy as np # Added NumPy import
 
 # Attempt to import all necessary modules.
 # Assuming all .py files are in the same directory or PYTHONPATH is configured.
