@@ -1,0 +1,9 @@
+{
+    "width": 95,
+    "height": 400,
+    "bbp": 16,
+    "format": "uint16",
+    "byte_order": "native",
+    "min_elevation_original": 0.0,
+    "max_elevation_original": 239999.0
+}

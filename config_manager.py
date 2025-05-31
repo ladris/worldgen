@@ -67,7 +67,7 @@ def get_setting(setting_name: str, default: any = None) -> any:
 if __name__ == '__main__':
     # Example usage (primarily for testing the module directly)
     # To test, you would need to set an environment variable or create a config.json
-    
+
     # Test case 1: API key from environment variable
     print("\n--- Test Case 1: API Key from Environment Variable ---")
     os.environ["TESTAPI_API_KEY"] = "env_key_123"
@@ -88,7 +88,7 @@ if __name__ == '__main__':
     }
     with open(CONFIG_FILE_PATH, 'w') as f_temp:
         json.dump(example_config_content, f_temp, indent=4)
-    
+
     print(f"OpenTopography API Key: {get_api_key('OpenTopography')}")
     print(f"NonExistent API Key: {get_api_key('NonExistentAPI')}")
 
@@ -112,5 +112,5 @@ if __name__ == '__main__':
     print(f"Default output path (malformed config): {get_setting('default_output_path', './default_out_malformed')}")
     if os.path.exists(CONFIG_FILE_PATH):
         os.remove(CONFIG_FILE_PATH) # Clean up
-    
+
     print("\n--- End of Tests ---")

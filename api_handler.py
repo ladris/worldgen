@@ -12,7 +12,7 @@ except ImportError:
     logger = logging.getLogger(__name__)
     if not logger.handlers:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(module)s:%(lineno)d - %(message)s")
-    
+
     # Define get_api_key locally if not importable, so __main__ example can run its checks
     def get_api_key(service_name: str) -> str | None:
         logger.warning(f"Using mock get_api_key for {service_name} as config_manager is unavailable.")
@@ -22,8 +22,8 @@ except ImportError:
 
 OPENTOPOGRAPHY_API_URL = "https://portal.opentopography.org/API/globaldem"
 
-def fetch_opentopography_data(dem_type: str, 
-                              bbox: tuple[float, float, float, float], 
+def fetch_opentopography_data(dem_type: str,
+                              bbox: tuple[float, float, float, float],
                               output_file: str,
                               api_key_override: str | None = None) -> bool:
     """
@@ -34,7 +34,7 @@ def fetch_opentopography_data(dem_type: str,
         bbox: A tuple (west, south, east, north) defining the area of interest.
               Coordinates are in WGS84 decimal degrees.
         output_file: Path to save the downloaded GeoTIFF data.
-        api_key_override: OpenTopography API key. If provided, this key is used. 
+        api_key_override: OpenTopography API key. If provided, this key is used.
                           If None, tries to fetch from config_manager.
 
     Returns:
@@ -86,7 +86,7 @@ def fetch_opentopography_data(dem_type: str,
     }
 
     logger.info(f"Requesting DEM '{dem_type}' for bbox: W={west},S={south},E={east},N={north} from OpenTopography.")
-    
+
     try:
         response = requests.get(OPENTOPOGRAPHY_API_URL, params=params, stream=True, timeout=180) # Increased timeout
         response.raise_for_status()  # Raises an HTTPError for bad responses (4XX or 5XX)
@@ -105,7 +105,7 @@ def fetch_opentopography_data(dem_type: str,
              # OpenTopography sometimes returns a small TIFF with an error message embedded
             with open(output_file, "rb") as f_check:
                 # Read a small portion that might contain text if it's an error TIFF
-                header = f_check.read(200).decode(errors='ignore') 
+                header = f_check.read(200).decode(errors='ignore')
             if "Error" in header or "error" in header or "failed" in header or "Forbidden" in header:
                 logger.warning(f"Downloaded file {output_file} is very small and may contain an API error message. Header snippet: {header[:100]}")
                 # Potentially return False here if small error TIFFs should be treated as failure
@@ -132,7 +132,7 @@ def fetch_opentopography_data(dem_type: str,
         logger.error(f"File I/O error when saving DEM data to {output_file}: {e}", exc_info=True)
     except Exception as e: # Catch-all for any other unexpected errors
         logger.error(f"An unexpected error occurred in fetch_opentopography_data: {e}", exc_info=True)
-        
+
     return False
 
 if __name__ == '__main__':
@@ -171,10 +171,10 @@ if __name__ == '__main__':
         # Using a different bbox than previous examples to avoid large downloads.
         # ggp_bbox = (-122.49, 37.765, -122.48, 37.770) # West, South, East, North
         # Even smaller test area:
-        small_test_bbox = (-122.485, 37.768, -122.480, 37.770) 
+        small_test_bbox = (-122.485, 37.768, -122.480, 37.770)
         dem_type_to_fetch = "SRTMGL1" # Common, usually available, relatively small
         output_filename_live = os.path.join(output_dir_example, f"test_{dem_type_to_fetch}_live.tif")
-        
+
         # Clean up previous test file if it exists
         if os.path.exists(output_filename_live):
             os.remove(output_filename_live)
@@ -196,12 +196,12 @@ if __name__ == '__main__':
     # Test Case 2: API key explicitly provided as empty string (should fail)
     logger_api_test.info("\n--- Test Case: API call with empty string API key ---")
     # BBox for a known area, e.g., Mount Everest
-    everest_bbox = (86.90, 27.97, 86.95, 28.00) 
+    everest_bbox = (86.90, 27.97, 86.95, 28.00)
     output_filename_empty_key = os.path.join(output_dir_example, "test_everest_empty_key.tif")
     if os.path.exists(output_filename_empty_key): # Cleanup
         os.remove(output_filename_empty_key)
 
-    success_empty_key = fetch_opentopography_data("NASADEM", everest_bbox, output_filename_empty_key, api_key_override="") 
+    success_empty_key = fetch_opentopography_data("NASADEM", everest_bbox, output_filename_empty_key, api_key_override="")
     if not success_empty_key:
         logger_api_test.info("API call with empty string API key correctly failed as expected.")
     else:

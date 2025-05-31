@@ -25,7 +25,7 @@ class TestMainController(unittest.TestCase):
     #     mock_fetch_api.return_value = True
     #     mock_get_info.return_value = (mock.MagicMock(), {'width':10, 'height':10, 'crs': 'EPSG:4326'}, -9999)
     #     # ... setup other mocks
-        
+
     #     # Call main_controller.main()
     #     # Assert that mocks were called in order, etc.
     pass

@@ -16,15 +16,15 @@ except ImportError:
 try:
     from geopy.geocoders import Nominatim
     from geopy.exc import GeocoderTimedOut, GeocoderUnavailable, GeocoderServiceError
-    from geopy.distance import geodesic, great_circle 
+    from geopy.distance import geodesic, great_circle
 except ImportError:
     logger.warning("Geopy library not found. Geocoding and distance functions may not be available.")
-    Nominatim = None 
+    Nominatim = None
     geodesic = None
     great_circle = None
 
-def transform_bbox_to_crs(bbox: tuple[float, float, float, float], 
-                          source_crs_str: str, 
+def transform_bbox_to_crs(bbox: tuple[float, float, float, float],
+                          source_crs_str: str,
                           target_crs_str: str) -> tuple[float, float, float, float] | None:
     """
     Transforms bounding box coordinates from a source CRS to a target CRS.
@@ -44,13 +44,13 @@ def transform_bbox_to_crs(bbox: tuple[float, float, float, float],
         target_crs = CRS.from_string(target_crs_str)
         # always_xy=True ensures (lon, lat) or (x, y) order for input and output
         transformer = Transformer.from_crs(source_crs, target_crs, always_xy=True)
-        
+
         min_x_src, min_y_src, max_x_src, max_y_src = bbox
 
         # Transform the two defining points of the bounding box
         transformed_corner1_x, transformed_corner1_y = transformer.transform(min_x_src, min_y_src)
         transformed_corner2_x, transformed_corner2_y = transformer.transform(max_x_src, max_y_src)
-        
+
         final_min_x = min(transformed_corner1_x, transformed_corner2_x)
         final_min_y = min(transformed_corner1_y, transformed_corner2_y)
         final_max_x = max(transformed_corner1_x, transformed_corner2_x)
@@ -70,7 +70,7 @@ def transform_bbox_to_crs(bbox: tuple[float, float, float, float],
         logger.error(f"Unexpected error during bounding box transformation: {e}", exc_info=True)
         return None
 
-def get_metric_dimensions(projected_bbox: tuple[float, float, float, float], 
+def get_metric_dimensions(projected_bbox: tuple[float, float, float, float],
                           crs_units_are_metric: bool = True) -> tuple[float, float] | None:
     """
     Calculates the width and height of a bounding box, assuming its CRS uses metric units.
@@ -94,7 +94,7 @@ def get_metric_dimensions(projected_bbox: tuple[float, float, float, float],
         height = abs(max_y - min_y)
         logger.info(f"Calculated dimensions for bbox {projected_bbox}: Width={width:.2f}, Height={height:.2f} (units of input CRS)")
         return width, height
-    except TypeError: 
+    except TypeError:
         logger.error(f"Invalid input type for projected_bbox or its elements: {projected_bbox}.", exc_info=True)
         return None
     except Exception as e:
@@ -132,8 +132,8 @@ def geocode_place_name(place_name_query: str, user_agent_app_name: str = "Terrai
         return None
 
 def calculate_bbox_from_center_and_distance(
-    center_lat: float, 
-    center_lon: float, 
+    center_lat: float,
+    center_lon: float,
     distance_km: float,
     use_great_circle: bool = False
 ) -> tuple[float, float, float, float] | None:
@@ -144,7 +144,7 @@ def calculate_bbox_from_center_and_distance(
     if geodesic is None or great_circle is None: # Check if geopy.distance was imported
         logger.error("Geopy library (distance functions) not available. Cannot calculate bounding box from center.")
         return None
-        
+
     if not (-90 <= center_lat <= 90):
         logger.error(f"Invalid center_lat: {center_lat}. Must be between -90 and 90.")
         return None
@@ -170,12 +170,12 @@ def calculate_bbox_from_center_and_distance(
         max_lat = north_point.latitude
         min_lon = west_point.longitude
         max_lon = east_point.longitude
-        
-        if min_lat > max_lat: 
+
+        if min_lat > max_lat:
              logger.warning("Calculated min_lat > max_lat, swapping.")
              min_lat, max_lat = max_lat, min_lat
-        
-        bbox = (min_lon, min_lat, max_lon, max_lat) 
+
+        bbox = (min_lon, min_lat, max_lon, max_lat)
         logger.info(f"Calculated BBox: West={bbox[0]:.4f}, South={bbox[1]:.4f}, East={bbox[2]:.4f}, North={bbox[3]:.4f}")
         return bbox
 
@@ -185,17 +185,17 @@ def calculate_bbox_from_center_and_distance(
 
 if __name__ == '__main__':
     try:
-        from logger_setup import setup_logger 
+        from logger_setup import setup_logger
         logger_utils_demo = setup_logger("CoordinateUtilsDemo", level=logging.DEBUG)
     except ImportError:
-        logger.setLevel(logging.DEBUG) 
-        logger_utils_demo = logger 
+        logger.setLevel(logging.DEBUG)
+        logger_utils_demo = logger
 
     logger_utils_demo.info("--- Starting CoordinateUtilsDemo ---")
 
-    wgs84_bbox_berlin = (13.0, 52.3, 13.7, 52.6) 
+    wgs84_bbox_berlin = (13.0, 52.3, 13.7, 52.6)
     source_epsg_4326 = "EPSG:4326"
-    utm32n_epsg = "EPSG:32632" 
+    utm32n_epsg = "EPSG:32632"
     logger_utils_demo.info(f"Attempting to transform Berlin bbox: {wgs84_bbox_berlin} from {source_epsg_4326} to {utm32n_epsg}")
     projected_bbox_berlin = transform_bbox_to_crs(wgs84_bbox_berlin, source_epsg_4326, utm32n_epsg)
     if projected_bbox_berlin:
@@ -223,9 +223,9 @@ if __name__ == '__main__':
     invalid_dims_format = get_metric_dimensions((10, 20, 30)) # type: ignore
     if not invalid_dims_format:
         logger_utils_demo.info("get_metric_dimensions with incorrect tuple length correctly failed.")
-        
+
     logger_utils_demo.info("\nTesting get_metric_dimensions with out-of-order coords (should use abs diff):")
-    unordered_bbox = (500000.0, 6000000.0, 400000.0, 5900000.0) 
+    unordered_bbox = (500000.0, 6000000.0, 400000.0, 5900000.0)
     dims_unordered = get_metric_dimensions(unordered_bbox)
     if dims_unordered:
         logger_utils_demo.info(f"Dimensions of unordered bbox: Width={dims_unordered[0]:.2f}, Height={dims_unordered[1]:.2f} (abs values used)")
@@ -241,7 +241,7 @@ if __name__ == '__main__':
             logger_utils_demo.info(f"Metric dimensions of LA bbox: Width={dimensions_la[0]:.2f}m, Height={dimensions_la[1]:.2f}m")
     else:
         logger_utils_demo.error("Failed to transform LA bbox.")
-        
+
     logger_utils_demo.info("\n--- Geocoding Tests ---")
     if Nominatim is not None: # Check if geopy was imported
         place = "Mount Everest"
@@ -266,7 +266,7 @@ if __name__ == '__main__':
     logger_utils_demo.info("\n--- Bounding Box Calculation Tests ---")
     if geodesic is not None and great_circle is not None: # Check if geopy.distance was imported
         denver_coords_direct = (39.7392, -104.9903) # Denver, CO approx coords
-        distance = 50 
+        distance = 50
         logger_utils_demo.info(f"Calculating {distance}km bbox around Denver ({denver_coords_direct[0]:.4f}, {denver_coords_direct[1]:.4f}) using geodesic")
         bbox_denver = calculate_bbox_from_center_and_distance(denver_coords_direct[0], denver_coords_direct[1], distance)
         if bbox_denver:
@@ -282,21 +282,21 @@ if __name__ == '__main__':
         if bbox_denver_gc:
              logger_utils_demo.info(f"Denver {distance}km BBox (Great Circle) (W,S,E,N): ({bbox_denver_gc[0]:.4f}, {bbox_denver_gc[1]:.4f}, {bbox_denver_gc[2]:.4f}, {bbox_denver_gc[3]:.4f})")
 
-        invalid_bbox_calc = calculate_bbox_from_center_and_distance(95, 0, 10) 
+        invalid_bbox_calc = calculate_bbox_from_center_and_distance(95, 0, 10)
         if not invalid_bbox_calc: logger_utils_demo.info("Correctly handled invalid latitude for bbox calculation.")
-        invalid_bbox_calc_dist = calculate_bbox_from_center_and_distance(0, 0, -10) 
+        invalid_bbox_calc_dist = calculate_bbox_from_center_and_distance(0, 0, -10)
         if not invalid_bbox_calc_dist: logger_utils_demo.info("Correctly handled invalid distance for bbox calculation.")
 
         north_pole_lat, north_pole_lon = 89.95, 0.0 # Closer to pole
-        distance_pole = 10 
+        distance_pole = 10
         logger_utils_demo.info(f"Calculating {distance_pole}km bbox around North Pole area ({north_pole_lat:.2f}, {north_pole_lon})")
         bbox_pole = calculate_bbox_from_center_and_distance(north_pole_lat, north_pole_lon, distance_pole)
         if bbox_pole:
              logger_utils_demo.info(f"North Pole area {distance_pole}km BBox (W,S,E,N): ({bbox_pole[0]:.4f}, {bbox_pole[1]:.4f}, {bbox_pole[2]:.4f}, {bbox_pole[3]:.4f})")
-        
+
         # Test near anti-meridian (e.g., Fiji, direct coords to avoid geocoding dependency here)
         # Using direct coordinates for Suva, Fiji for robustness if geocoding fails
-        lat_fiji, lon_fiji = -18.1416, 178.4419 
+        lat_fiji, lon_fiji = -18.1416, 178.4419
         distance_fiji = 200 # km, larger distance to potentially cross anti-meridian more clearly
         logger_utils_demo.info(f"Calculating {distance_fiji}km bbox around Fiji test coords ({lat_fiji:.4f}, {lon_fiji:.4f})")
         bbox_fiji = calculate_bbox_from_center_and_distance(lat_fiji, lon_fiji, distance_fiji)

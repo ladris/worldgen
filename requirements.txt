@@ -6,7 +6,7 @@ requests>=2.25.0,<3.0.0
 # For geospatial raster processing
 # Rasterio itself depends on GDAL, which needs to be installed separately.
 # See README.md for GDAL installation guidance.
-rasterio>=1.2.0,<1.4.0 
+rasterio>=1.2.0,<1.4.0
 
 # For coordinate reference system transformations
 pyproj>=3.0.0,<3.7.0

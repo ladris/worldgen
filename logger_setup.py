@@ -19,7 +19,7 @@ def setup_logger(name="terrain_tool_logger", level=DEFAULT_LOG_LEVEL, log_file=N
     logger = logging.getLogger(name)
     logger.setLevel(level)
     # Prevent messages from propagating to the root logger, which might have its own handlers
-    logger.propagate = False 
+    logger.propagate = False
 
     # Clear existing handlers to avoid duplicate messages if setup_logger is called multiple times
     # or if other parts of the application configure the same logger.
@@ -41,7 +41,7 @@ def setup_logger(name="terrain_tool_logger", level=DEFAULT_LOG_LEVEL, log_file=N
             log_dir = os.path.dirname(log_file)
             if log_dir and not os.path.exists(log_dir):
                 os.makedirs(log_dir)
-            
+
             fh = logging.FileHandler(log_file, mode='a') # 'a' for append
             fh.setFormatter(formatter)
             logger.addHandler(fh)
@@ -63,7 +63,7 @@ def setup_logger(name="terrain_tool_logger", level=DEFAULT_LOG_LEVEL, log_file=N
     # add a NullHandler to prevent "No handlers could be found for logger..." messages
     if not logger.hasHandlers():
         logger.addHandler(logging.NullHandler())
-        
+
     return logger
 
 if __name__ == '__main__':
@@ -73,7 +73,7 @@ if __name__ == '__main__':
     logger_console_debug = setup_logger("ConsoleOnlyDebug", level=logging.DEBUG)
     logger_console_debug.debug("This is a DEBUG message for the console-only logger.")
     logger_console_debug.info("This is an INFO message for the console-only logger.")
-    
+
     print("\n--- Example 2: Console Logger (INFO level, default) ---")
     logger_console_info = setup_logger("ConsoleOnlyInfo") # Default level is INFO
     logger_console_info.debug("This DEBUG message will NOT be shown for ConsoleOnlyInfo.")
@@ -88,7 +88,7 @@ if __name__ == '__main__':
     if not os.path.exists(log_dir_example):
         os.makedirs(log_dir_example)
     app_log_file = os.path.join(log_dir_example, "app.log")
-    
+
     # Clean up old log file for fresh test run
     if os.path.exists(app_log_file):
         os.remove(app_log_file)
@@ -102,7 +102,7 @@ if __name__ == '__main__':
     file_only_log_path = os.path.join(log_dir_example, "file_only.log")
     if os.path.exists(file_only_log_path):
         os.remove(file_only_log_path)
-        
+
     logger_file_only = setup_logger("FileOnlyDemo", level=logging.DEBUG, log_file=file_only_log_path, log_to_console=False)
     logger_file_only.debug("This DEBUG message goes only to " + file_only_log_path)
     logger_file_only.info("This INFO message goes only to " + file_only_log_path)

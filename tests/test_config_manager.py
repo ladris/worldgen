@@ -16,13 +16,13 @@ class TestConfigManager(unittest.TestCase):
         # Store original environ and CONFIG_FILE_PATH to restore later if changed
         self.original_environ = os.environ.copy()
         self.original_config_file_path = CONFIG_FILE_PATH # Assuming CONFIG_FILE_PATH is constant
-        
+
         # Ensure a clean slate for relevant env vars before each test
         self.env_vars_to_clear = ["TESTAPI_API_KEY", "OTHERAPI_API_KEY", "MYSERVICE_API_KEY"]
         for key in self.env_vars_to_clear:
             if key in os.environ:
                 del os.environ[key]
-        
+
         # Clean up dummy config file if it exists from a previous failed run
         if os.path.exists(self.original_config_file_path):
             try:
@@ -36,9 +36,9 @@ class TestConfigManager(unittest.TestCase):
         if os.path.exists(self.original_config_file_path):
             try:
                 os.remove(self.original_config_file_path)
-            except OSError: 
+            except OSError:
                 pass
-        
+
         # Restore original environment variables that were modified or cleared
         os.environ.clear()
         os.environ.update(self.original_environ)
@@ -55,7 +55,7 @@ class TestConfigManager(unittest.TestCase):
         # Ensure env var is not set
         if "TESTAPI_API_KEY" in os.environ:
             del os.environ["TESTAPI_API_KEY"]
-        
+
         dummy_config = {"api_keys": {"TestAPI": "json_key_456"}}
         with open(CONFIG_FILE_PATH, 'w') as f: # Use module's CONFIG_FILE_PATH
             json.dump(dummy_config, f)
@@ -78,7 +78,7 @@ class TestConfigManager(unittest.TestCase):
     def test_get_api_key_json_exists_but_key_missing(self):
         if "TESTAPI_API_KEY" in os.environ:
             del os.environ["TESTAPI_API_KEY"]
-        dummy_config = {"api_keys": {"OtherAPI": "other_key"}} 
+        dummy_config = {"api_keys": {"OtherAPI": "other_key"}}
         with open(CONFIG_FILE_PATH, 'w') as f: # Use module's CONFIG_FILE_PATH
             json.dump(dummy_config, f)
         self.assertIsNone(get_api_key("TestAPI"))
@@ -116,7 +116,7 @@ class TestConfigManager(unittest.TestCase):
             json.dump(dummy_config, f)
         self.assertIsNone(get_setting("missing_setting"))
         self.assertEqual(get_setting("missing_setting_with_default", "default1"), "default1")
-        
+
     @mock.patch('builtins.print') # Suppress print output
     def test_get_setting_malformed_json(self, mock_print):
         with open(CONFIG_FILE_PATH, 'w') as f: # Use module's CONFIG_FILE_PATH

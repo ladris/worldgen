@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 # Assuming pyproj is installed, otherwise these tests will fail at import
 from coordinate_utils import (
-    transform_bbox_to_crs, 
+    transform_bbox_to_crs,
     get_metric_dimensions,
     geocode_place_name,              # Added
     calculate_bbox_from_center_and_distance # Added
@@ -35,14 +35,14 @@ class TestCoordinateUtils(unittest.TestCase):
 
     # Basic test for a known transformation (WGS84 to a UTM zone)
     def test_transform_bbox_to_crs_valid(self):
-        wgs84_bbox = (-122.42, 37.77, -122.40, 37.78) 
-        target_crs_epsg = "EPSG:32610" 
+        wgs84_bbox = (-122.42, 37.77, -122.40, 37.78)
+        target_crs_epsg = "EPSG:32610"
         transformed_bbox = transform_bbox_to_crs(wgs84_bbox, "EPSG:4326", target_crs_epsg)
         self.assertIsNotNone(transformed_bbox)
         self.assertEqual(len(transformed_bbox), 4)
         self.assertTrue(all(isinstance(coord, float) for coord in transformed_bbox))
-        self.assertTrue(transformed_bbox[0] > 0 and transformed_bbox[1] > 0) 
-        self.assertTrue(transformed_bbox[2] > transformed_bbox[0]) 
+        self.assertTrue(transformed_bbox[0] > 0 and transformed_bbox[1] > 0)
+        self.assertTrue(transformed_bbox[2] > transformed_bbox[0])
         self.assertTrue(transformed_bbox[3] > transformed_bbox[1])
 
     @patch('coordinate_utils.logger.error') # Patch logger to suppress error messages during test
@@ -54,7 +54,7 @@ class TestCoordinateUtils(unittest.TestCase):
         self.assertIsNone(res_invalid_target)
 
     @patch('coordinate_utils.Transformer.from_crs')
-    @patch('coordinate_utils.logger.error') 
+    @patch('coordinate_utils.logger.error')
     def test_transform_bbox_to_crs_transformation_error(self, mock_logger_error, mock_from_crs):
         mock_transformer_instance = MagicMock()
         mock_transformer_instance.transform.side_effect = Exception("Simulated pyproj transform error")
@@ -64,7 +64,7 @@ class TestCoordinateUtils(unittest.TestCase):
         self.assertIsNone(transformed_bbox)
 
     def test_get_metric_dimensions_valid(self):
-        projected_bbox = (500000.0, 4100000.0, 501000.0, 4102000.0) 
+        projected_bbox = (500000.0, 4100000.0, 501000.0, 4102000.0)
         width, height = get_metric_dimensions(projected_bbox) # type: ignore
         self.assertIsNotNone(width)
         self.assertIsNotNone(height)
@@ -88,11 +88,11 @@ class TestCoordinateUtils(unittest.TestCase):
 
     @patch('coordinate_utils.logger.error')
     def test_get_metric_dimensions_invalid_tuple_length(self, mock_logger_error):
-        projected_bbox_short = (500000.0, 4100000.0, 501000.0) 
+        projected_bbox_short = (500000.0, 4100000.0, 501000.0)
         result = get_metric_dimensions(projected_bbox_short) # type: ignore
         self.assertIsNone(result)
 
-    @patch('coordinate_utils.logger.warning') 
+    @patch('coordinate_utils.logger.warning')
     def test_get_metric_dimensions_crs_not_metric_warning(self, mock_logger_warning):
         projected_bbox = (500000.0, 4100000.0, 501000.0, 4102000.0)
         get_metric_dimensions(projected_bbox, crs_units_are_metric=False)
@@ -106,14 +106,14 @@ class TestCoordinateUtils(unittest.TestCase):
 
     # --- Tests for geocode_place_name ---
     @unittest.skipIf(not GEOPY_AVAILABLE, "geopy library not installed, skipping geocoding tests")
-    @patch('coordinate_utils.Nominatim') 
+    @patch('coordinate_utils.Nominatim')
     def test_geocode_place_name_success(self, mock_nominatim):
         mock_geolocator_instance = MagicMock()
         # Use a plain MagicMock first to ensure truthiness, then re-evaluate spec if needed
-        mock_location_obj = MagicMock() 
+        mock_location_obj = MagicMock()
         mock_location_obj.latitude = 48.8584
         mock_location_obj.longitude = 2.2945
-        
+
         mock_geolocator_instance.geocode.return_value = mock_location_obj
         mock_nominatim.return_value = mock_geolocator_instance
 
@@ -127,7 +127,7 @@ class TestCoordinateUtils(unittest.TestCase):
     @patch('coordinate_utils.logger.warning')
     def test_geocode_place_name_not_found(self, mock_logger_warning, mock_nominatim):
         mock_geolocator_instance = MagicMock()
-        mock_geolocator_instance.geocode.return_value = None 
+        mock_geolocator_instance.geocode.return_value = None
         mock_nominatim.return_value = mock_geolocator_instance
         result = geocode_place_name("NonExistentPlace123")
         self.assertIsNone(result)
@@ -141,7 +141,7 @@ class TestCoordinateUtils(unittest.TestCase):
         mock_nominatim.return_value = mock_geolocator_instance
         result = geocode_place_name("QueryThatTimesOut")
         self.assertIsNone(result)
-        
+
     @unittest.skipIf(not GEOPY_AVAILABLE, "geopy library not installed, skipping geocoding tests")
     @patch('coordinate_utils.Nominatim')
     @patch('coordinate_utils.logger.error')
@@ -166,11 +166,11 @@ class TestCoordinateUtils(unittest.TestCase):
     @unittest.skipIf(not GEOPY_AVAILABLE, "geopy library not installed, skipping distance tests")
     def test_calculate_bbox_valid_inputs(self):
         lat, lon = 48.8566, 2.3522
-        distance = 10 
+        distance = 10
         bbox = calculate_bbox_from_center_and_distance(lat, lon, distance)
         self.assertIsNotNone(bbox)
-        self.assertEqual(len(bbox), 4) 
-        self.assertLess(bbox[1], bbox[3]) 
+        self.assertEqual(len(bbox), 4)
+        self.assertLess(bbox[1], bbox[3])
         self.assertTrue(all(isinstance(coord, float) for coord in bbox))
 
     @unittest.skipIf(not GEOPY_AVAILABLE, "geopy library not installed, skipping distance tests")

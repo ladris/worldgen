@@ -26,7 +26,7 @@ class TestUnrealPreparer(unittest.TestCase):
         min_elev = 100.0
         max_elev = 611.992 # Makes elevation_span_m * 100 / UE_INTERNAL_HEIGHT_SPAN = 100.0
         pixel_res = 2.0
-        
+
         expected_scale_xy = pixel_res * 100.0  # 200.0
         expected_elevation_span_m = max_elev - min_elev # 511.992
         expected_scale_z = (expected_elevation_span_m * 100.0) / UE_INTERNAL_HEIGHT_SPAN # Should be 100.0
@@ -68,7 +68,7 @@ class TestUnrealPreparer(unittest.TestCase):
     @mock.patch('builtins.print')
     def test_calculate_ue_scales_min_greater_than_max(self, mock_print):
         self.assertIsNone(calculate_ue_scales(200.0, 100.0, 10.0))
-        
+
     @mock.patch('builtins.print')
     def test_calculate_ue_scales_non_numeric_input(self, mock_print):
         self.assertIsNone(calculate_ue_scales("abc", 200.0, 1.0)) # type: ignore
@@ -108,7 +108,7 @@ class TestUnrealPreparer(unittest.TestCase):
     @mock.patch('unreal_preparer.os.makedirs', side_effect=OSError("Simulated error creating dir"))
     @mock.patch('unreal_preparer.logger.error') # Mock the logger directly
     def test_generate_ue_import_report_save_io_error_makedirs(self, mock_logger_error, mock_makedirs):
-        ue_params = {"scale_x_ue_cm": 100.0, 
+        ue_params = {"scale_x_ue_cm": 100.0,
                      "actual_min_elev_aoi_m": 0.0, # Add other keys to prevent ValueErrors from formatting N/A
                      "actual_max_elev_aoi_m": 0.0,
                      "elevation_span_aoi_m": 0.0,
@@ -118,16 +118,16 @@ class TestUnrealPreparer(unittest.TestCase):
                      "location_z_ue_cm": 0.0
                     } # Provide more complete ue_params to avoid ValueErrors during string formatting
         report_path = os.path.join(self.test_output_dir, "subdir", "test_report_fail.txt")
-        
+
         report_str = generate_ue_import_report(ue_params, report_path=report_path)
         self.assertFalse(os.path.exists(report_path)) # File should not be created
-        
+
         called_with_expected_message = False
         for call in mock_logger_error.call_args_list:
             if "Failed to save UE import report" in call.args[0]:
                 called_with_expected_message = True
                 break
-        self.assertTrue(called_with_expected_message, 
+        self.assertTrue(called_with_expected_message,
                         "logger.error was not called with the expected 'Failed to save' message.")
 
 

@@ -14,10 +14,11 @@ This Python tool facilitates the recreation of real-world locations within virtu
     *   Reads standard GeoTIFF files.
     *   Scales elevation values to the 16-bit unsigned integer range (0-65535) required by Unreal Engine.
 *   Outputs heightmaps in formats compatible with Unreal Engine:
-    *   16-bit grayscale PNG (.png)
-    *   16-bit raw binary (.r16) with an accompanying JSON sidecar file.
-*   Calculates precise X, Y, and Z scale factors and Z location offset for Unreal Engine import, ensuring accurate 1:1 terrain scale.
-*   Generates a human-readable report detailing all parameters needed for manual import into Unreal Engine.
+    *   Single 16-bit grayscale PNG (.png).
+    *   Single 16-bit raw binary (.r16) with an accompanying JSON sidecar file.
+    *   Supports tiling of large DEMs into smaller, manageable heightmap chunks (PNG or RAW+JSON) compatible with Unreal Engine's World Partition.
+*   Calculates precise X, Y, and Z scale factors and Z location offset for Unreal Engine import, ensuring accurate 1:1 terrain scale (applies globally for tiled landscapes).
+*   Generates a human-readable report detailing all parameters needed for manual import into Unreal Engine, including tiling information if used.
 *   Modular design for extensibility (e.g., adding new APIs, processing steps).
 *   Configurable logging for monitoring and debugging.
 *   Unit tests for core components to ensure reliability.
@@ -42,7 +43,7 @@ This Python tool facilitates the recreation of real-world locations within virtu
 ├── terrain_tool/                 # Main application package (if structured as such)
 │   ├── main_controller.py        # Orchestrates the entire workflow
 │   ├── api_handler.py            # Handles interactions with elevation data APIs
-│   ├── dem_processor.py          # GIS and raster processing tasks
+│   ├── dem_processor.py          # GIS and raster processing tasks (including tiling)
 │   ├── coordinate_utils.py       # Coordinate transformation and geocoding functions
 │   ├── unreal_preparer.py        # Calculates UE specific parameters and generates reports
 │   ├── config_manager.py         # Manages configuration (API keys, paths)
@@ -55,6 +56,7 @@ This Python tool facilitates the recreation of real-world locations within virtu
 │   ├── test_coordinate_utils.py
 │   ├── ... (other test files)
 ├── output_data_main_controller/  # Default directory for generated output files from main_controller
+│   └── terrain_tiles/            # Default subdirectory for tiled output
 ├── output_data_test/             # Directory for test output files from individual module tests
 ├── README.md                     # This file
 ├── requirements.txt              # Python dependencies
@@ -122,7 +124,7 @@ This Python tool facilitates the recreation of real-world locations within virtu
 The primary entry point for the tool is `main_controller.py`.
 
 1.  **Configure Input Parameters in `main_controller.py`**:
-    Open `main_controller.py` and adjust parameters in the `# --- Configuration ---` and `# --- Input Mode ---` sections:
+    Open `main_controller.py` and adjust parameters in the `# --- Configuration ---`, `# --- Input Mode ---`, and `# --- Tiling Configuration ---` sections:
 
     *   **`INPUT_MODE`**: Set to either `"BBOX"` or `"PLACENAME"`.
         *   `"BBOX"`: Uses manually defined bounding box coordinates via `AOI_BBOX_WGS84_MANUAL`.
@@ -141,6 +143,12 @@ The primary entry point for the tool is `main_controller.py`.
         *   `OUTPUT_DIR`: Directory for output files (default: `./output_data_main_controller`).
         *   `OUTPUT_HEIGHTMAP_FORMAT`: Choose `"PNG"`, `"RAW"`, or `"BOTH"`.
 
+    *   **Tiling Configuration (Optional)**:
+        *   `ENABLE_TILING`: Set to `True` to enable tiling for large terrains, or `False` (default) for a single output heightmap.
+        *   `TILE_SIZE_X_PX`, `TILE_SIZE_Y_PX`: Desired dimensions (width, height) of each tile in pixels (vertices). Common Unreal Engine landscape sizes like 505 (505x505), 1009 (1009x1009), 2017 (2017x2017) are recommended. These sizes are typically calculated as `((QuadsPerSection * SectionsPerComponent * NumComponents) + 1)`.
+        *   `TILE_OUTPUT_DIR_NAME`: Name of the subdirectory (within `OUTPUT_DIR`) where tiles will be saved (e.g., `"terrain_tiles"`).
+        *   `TILE_NAMING_PREFIX`: Prefix for tile filenames (e.g., `"tile"` resulting in `tile_X0_Y0.png`).
+
 2.  **Run the Script**:
     ```bash
     python main_controller.py
@@ -156,27 +164,31 @@ The `main_controller.py` script performs the following steps:
 4.  **Calculates Metric Size**: Transforms the AOI's WGS84 bounding box to the target UTM CRS to determine its precise width and height in meters.
 5.  **Determines Pixel Resolution**: Calculates the effective ground resolution (meters/pixel) of the downloaded DEM based on its pixel dimensions and the AOI's metric size.
 6.  **Scales Elevation Data**: Converts the DEM's elevation values (which are typically floats representing meters) into a 0-65535 unsigned 16-bit integer range. This step also captures the actual minimum and maximum elevation values of the AOI.
-7.  **Saves Heightmap**: Saves the scaled 16-bit data as:
-    *   A 16-bit grayscale PNG file.
-    *   And/or a 16-bit raw binary file (`.r16`) with an accompanying JSON sidecar file.
-8.  **Calculates UE Parameters**: Determines the exact Scale X, Y, Z, and Location Z values needed for Unreal Engine import.
-9.  **Generates Report**: Creates a text file summarizing the input parameters, processed data characteristics, and the calculated Unreal Engine import settings.
+7.  **Saves Heightmap(s)**:
+    *   If tiling is enabled (`ENABLE_TILING = True`), the scaled DEM is sliced into multiple tile files and saved in the specified format(s) (PNG and/or RAW+JSON) within a subdirectory.
+    *   Otherwise, the single, full-size scaled DEM is saved in the specified format(s).
+8.  **Calculates UE Parameters**: Determines the exact Scale X, Y, Z, and Location Z values needed for Unreal Engine import. These apply globally, even for tiled landscapes.
+9.  **Generates Report**: Creates a text file summarizing the input parameters, processed data characteristics (including tiling details if applicable), and the calculated Unreal Engine import settings.
 
 ## 9. Output Explanation
 
-After a successful run, you will find the following files in your specified `OUTPUT_DIR` (e.g., `./output_data_main_controller`):
+After a successful run, you will find files in your specified `OUTPUT_DIR` (e.g., `./output_data_main_controller`):
 *   `downloaded_dem.tif`: The original DEM file downloaded from the API.
-*   `heightmap_ue.png` (if PNG format selected): The processed 16-bit grayscale heightmap ready for Unreal Engine.
-*   `heightmap_ue_raw.r16` (if RAW format selected): The raw 16-bit heightmap data.
-*   `heightmap_ue_raw.json` (if RAW format selected): The JSON sidecar file for the `.r16` heightmap, containing metadata such as:
-    *   `width`: Width of the heightmap in pixels.
-    *   `height`: Height of the heightmap in pixels.
-    *   `bbp`: Bits per pixel (typically 16).
-    *   `format`: Data type of the raw pixels (e.g., "uint16").
-    *   `byte_order`: Byte order of the raw data (e.g., "little" for little-endian, "big" for big-endian, or "native" if system-dependent).
-    *   `min_elevation_original`: The original minimum elevation (in meters) of the Area of Interest that corresponds to the value 0 in the scaled heightmap.
-    *   `max_elevation_original`: The original maximum elevation (in meters) of the Area of Interest that corresponds to the value 65535 in the scaled heightmap.
-*   `unreal_engine_import_guide.txt`: A text file with all the calculated parameters (Scale X, Y, Z; Location Z) and notes for importing the landscape into Unreal Engine.
+*   **If Tiling is Disabled (`ENABLE_TILING = False`)**:
+    *   `heightmap_ue.png` (if PNG format selected): The processed 16-bit grayscale heightmap.
+    *   `heightmap_ue_raw.r16` (if RAW format selected): The raw 16-bit heightmap data.
+    *   `heightmap_ue_raw.json` (if RAW format selected): JSON sidecar for the single `.r16` file.
+*   **If Tiling is Enabled (`ENABLE_TILING = True`)**:
+    *   A subdirectory named by `TILE_OUTPUT_DIR_NAME` (e.g., `terrain_tiles/`) containing:
+        *   Multiple tile files, e.g., `tile_X0_Y0.png`, `tile_X0_Y1.png`, ... (if PNG format selected).
+        *   And/or `tile_X0_Y0.r16`, `tile_X0_Y0.json`, ... (if RAW format selected).
+    *   The JSON sidecar for each RAW tile (`.r16`) will contain metadata such as:
+        *   `width`, `height`: Dimensions of that specific tile in pixels.
+        *   `bbp`: Bits per pixel (typically 16).
+        *   `format`: Data type ("uint16").
+        *   `byte_order`: Byte order (e.g., "little", "big", "native").
+        *   `min_elevation_original`, `max_elevation_original`: These refer to the original minimum and maximum elevation (in meters) of the **entire AOI** before tiling, ensuring consistent Z-scaling across all tiles.
+*   `unreal_engine_import_guide.txt`: A text file with calculated parameters and import notes. If tiling was used, this report will include details about the tile dimensions, grid size, and naming.
 
 ## 10. Unreal Engine Import Steps
 
@@ -184,10 +196,15 @@ Refer to the `unreal_engine_import_guide.txt` generated by the tool. The general
 1.  In Unreal Engine, open your project and go to **Landscape Mode** (Shift+2).
 2.  Choose **Manage** mode, then click **New**.
 3.  Select **Import from File**.
-4.  Browse to and select your generated heightmap file (either the `.png` or the `.r16` file – UE will use the `.json` sidecar for the `.r16`).
-5.  Enter the **Scale X, Y, and Z** values provided in the report.
-6.  Set the **Landscape Actor's Z Location** (under its Transform details after creation, or sometimes available during import) to the `Location Z` value from the report. This ensures the landscape is positioned correctly relative to sea level (if your min elevation was sea level).
-7.  Adjust **Section Size**, **Sections Per Component**, and **Number of Components** according to your heightmap's resolution and Unreal Engine's recommended landscape sizes (see Unreal Engine Landscape Technical Guide). The report will indicate the dimensions of your generated heightmap.
+4.  Browse to and select your generated heightmap file(s).
+    *   **For a single heightmap**: Select the `.png` or `.r16` file.
+    *   **For Tiled Landscapes**:
+        *   It is highly recommended to use Unreal Engine's **World Partition** system (enabled by default in new UE5 projects).
+        *   Click the "Import Tiled Landscape" button in the Landscape panel.
+        *   Select all your generated heightmap tiles (e.g., select all `tile_X*_Y*.png` or `tile_X*_Y*.r16` files). Unreal Engine will arrange them based on their filenames.
+5.  Enter the **Scale X, Y, and Z** values provided in the report. These scales are global and apply to the entire landscape or all tiles.
+6.  Set the **Landscape Actor's Z Location** (under its Transform details after creation) to the `Location Z` value from the report.
+7.  Adjust **Section Size**, **Sections Per Component**, and **Number of Components** according to your heightmap's resolution (for single files) or tile dimensions (for tiled landscapes) and Unreal Engine's recommended landscape sizes. The report will indicate the dimensions of your generated heightmap(s).
 8.  Click **Import**.
 
 ## 11. Running Tests
@@ -203,24 +220,21 @@ To run the unit tests:
 
 ## 12. Future Enhancements/TODOs
 
-*   **Graphical User Interface (GUI)**: Develop a GUI (e.g., using Tkinter, PyQt, or a web framework like Flask/Django) for easier parameter input and workflow management.
-*   **Command-Line Interface (CLI)**: Implement a proper CLI using `argparse` for more flexible script execution.
-*   **More API Support**: Add integration for other elevation data sources (e.g., USGS 3DEP via `seamless-3dep`, NASA AppEEARS, OpenTopoData).
-*   **Automatic UTM Zone Detection**: Implement logic to automatically determine the correct UTM zone for the AOI.
-*   **Advanced DEM Processing**:
-    *   Implement optional clipping of the downloaded DEM if it's larger than the AOI.
-    *   Implement reprojection of the DEM to different CRSs if needed.
-    *   Implement resampling to user-defined output resolutions.
-*   **Tiling for Large Terrains**: Add support for tiling large DEMs into smaller, manageable heightmap chunks compatible with Unreal Engine's World Partition system.
-*   **Unreal Engine Python Scripting**: Explore generating a Python script to automate the import process directly within Unreal Engine.
-*   **Error Handling and Validation**: Enhance input validation and error reporting.
-*   **Packaging**: Package the tool for easier distribution (e.g., using PyInstaller or as a pip-installable package).
+*   **Graphical User Interface (GUI)**: Develop a GUI for easier parameter input.
+*   **Command-Line Interface (CLI)**: Implement a proper CLI using `argparse`.
+*   **More API Support**: Add integration for other elevation data sources.
+*   **Automatic UTM Zone Detection**.
+*   **Advanced DEM Processing**: Clipping, reprojection, resampling options.
+*   **Unreal Engine Python Scripting**: Automate import into UE.
+*   **Error Handling and Validation**: Enhance input validation.
+*   **Packaging**: Package the tool for easier distribution.
 
 ## 13. Extra Resources
 
 *   [OpenTopography API Documentation](https://opentopography.org/developers)
-*   [Nominatim Usage Policy](https://operations.osmfoundation.org/policies/nominatim/): If using the place name geocoding feature, please be aware of Nominatim's usage policy (no heavy use, provide a valid User-Agent). This tool sets a default User-Agent but for extensive use, review their terms.
+*   [Nominatim Usage Policy](https://operations.osmfoundation.org/policies/nominatim/): If using the place name geocoding feature, please be aware of Nominatim's usage policy.
 *   [Unreal Engine Landscape Technical Guide](https://docs.unrealengine.com/en-US/BuildingWorlds/Landscape/TechnicalGuide/index.html)
+*   [Unreal Engine World Partition](https://docs.unrealengine.com/en-US/BuildingWorlds/WorldPartition/)
 *   [Unreal Engine Georeferencing Plugin](https://docs.unrealengine.com/en-US/BuildingWorlds/Georeferencing/index.html)
 *   [Rasterio Documentation](https://rasterio.readthedocs.io/en/stable/)
 *   [PyProj Documentation](https://pyproj4.github.io/pyproj/stable/)
@@ -230,14 +244,22 @@ To run the unit tests:
 
 ## 14. Version History / Changelog
 
-**v1.0.0 (Current Version) - 2023-10-27**
+**v1.0.1 - 2023-10-28**
+*   Added tiling functionality:
+    *   DEMs can be split into multiple smaller heightmap tiles.
+    *   Configuration options for enabling tiling and tile parameters in `main_controller.py`.
+    *   UE import report updated to include tiling information.
+*   Enhanced `coordinate_utils` with geocoding and bounding box calculation from center point.
+*   Updated `main_controller` to support AOI definition by place name + distance or by manual BBox.
+
+**v1.0.0 - 2023-10-27**
 *   Initial release.
 *   Core functionality:
-    *   Fetch DEM from OpenTopography based on BBox or Place Name + distance.
-    *   Process DEM to 16-bit heightmap (PNG & RAW+JSON).
+    *   Fetch DEM from OpenTopography based on BBox.
+    *   Process DEM to 16-bit heightmap (single PNG & RAW+JSON).
     *   Calculate UE scale and location parameters.
     *   Generate import report.
-*   Modules: `main_controller`, `api_handler`, `dem_processor`, `coordinate_utils` (with geocoding & bbox from center), `unreal_preparer`, `config_manager`, `logger_setup`.
+*   Modules: `main_controller`, `api_handler`, `dem_processor`, `coordinate_utils`, `unreal_preparer`, `config_manager`, `logger_setup`.
 *   Basic unit tests for `config_manager`, `coordinate_utils`, `unreal_preparer`.
 
 ## 15. License
