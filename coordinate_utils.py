@@ -8,63 +8,65 @@ try:
     from logger_setup import setup_logger
     logger = setup_logger(__name__, level=logging.INFO)
 except ImportError:
-    print("logger_setup.py not found or setup_logger could not be imported. Using basic logging.")
+    # This print is for the case where logger_setup itself is missing
+    print("Warning: logger_setup.py not found or setup_logger could not be imported. Using basic Python logging.")
     logger = logging.getLogger(__name__)
-    if not logger.handlers: # Avoid adding multiple handlers if already configured
+    if not logger.handlers:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(module)s:%(lineno)d - %(message)s")
 
+# Geopy imports
 try:
     from geopy.geocoders import Nominatim
     from geopy.exc import GeocoderTimedOut, GeocoderUnavailable, GeocoderServiceError
     from geopy.distance import geodesic, great_circle
+    GEOPY_AVAILABLE = True
 except ImportError:
-    logger.warning("Geopy library not found. Geocoding and distance functions may not be available.")
+    # Warning logged here if logger is already configured by logger_setup
+    if 'logger' in globals() and logger.handlers: # Check if our main logger is available
+        logger.warning("Geopy library not found. Geocoding and distance functions may not be available.")
+    else: # Fallback print if logger isn't ready
+        print("Warning: Geopy library not found. Geocoding and distance functions may not be available.")
     Nominatim = None
     geodesic = None
     great_circle = None
+    GEOPY_AVAILABLE = False # Explicitly set
+
+# UTM library import
+try:
+    import utm
+    UTM_AVAILABLE = True # If geopy was false, this makes it true if utm is found
+except ImportError:
+    UTM_AVAILABLE = False # Stays false if geopy was also false, or becomes false if geopy was true but utm is not
+    # Warning logged here if logger is available
+    if 'logger' in globals() and logger.handlers:
+        logger.warning("utm library not found. Automatic UTM EPSG detection will not be available.")
+    else:
+        print("Warning: utm library not found. Automatic UTM EPSG detection will not be available.")
+
 
 def transform_bbox_to_crs(bbox: tuple[float, float, float, float],
                           source_crs_str: str,
                           target_crs_str: str) -> tuple[float, float, float, float] | None:
     """
     Transforms bounding box coordinates from a source CRS to a target CRS.
-
-    Args:
-        bbox: A tuple (min_lon, min_lat, max_lon, max_lat) or (min_x, min_y, max_x, max_y).
-              The interpretation depends on the source_crs_str.
-        source_crs_str: String identifier for the source CRS (e.g., "EPSG:4326").
-        target_crs_str: String identifier for the target CRS (e.g., "EPSG:32610").
-
-    Returns:
-        A tuple (min_x_target, min_y_target, max_x_target, max_y_target) in the target CRS,
-        or None if transformation fails.
     """
     try:
         source_crs = CRS.from_string(source_crs_str)
         target_crs = CRS.from_string(target_crs_str)
-        # always_xy=True ensures (lon, lat) or (x, y) order for input and output
         transformer = Transformer.from_crs(source_crs, target_crs, always_xy=True)
-
         min_x_src, min_y_src, max_x_src, max_y_src = bbox
-
-        # Transform the two defining points of the bounding box
         transformed_corner1_x, transformed_corner1_y = transformer.transform(min_x_src, min_y_src)
         transformed_corner2_x, transformed_corner2_y = transformer.transform(max_x_src, max_y_src)
-
         final_min_x = min(transformed_corner1_x, transformed_corner2_x)
         final_min_y = min(transformed_corner1_y, transformed_corner2_y)
         final_max_x = max(transformed_corner1_x, transformed_corner2_x)
         final_max_y = max(transformed_corner1_y, transformed_corner2_y)
-
-        logger.info(f"Transformed bbox from {source_crs.name} (Source CRS: {source_crs_str}) "
-                    f"to {target_crs.name} (Target CRS: {target_crs_str}): "
+        logger.info(f"Transformed bbox from {source_crs.name} ({source_crs_str}) to {target_crs.name} ({target_crs_str}): "
                     f"Original: ({min_x_src:.6f}, {min_y_src:.6f}, {max_x_src:.6f}, {max_y_src:.6f}) -> "
                     f"Transformed: ({final_min_x:.2f}, {final_min_y:.2f}, {final_max_x:.2f}, {final_max_y:.2f})")
         return (final_min_x, final_min_y, final_max_x, final_max_y)
-
     except CRSError as e:
-        logger.error(f"CRS error during transformation from '{source_crs_str}' to '{target_crs_str}': {e}. "
-                     f"Input bbox: {bbox}")
+        logger.error(f"CRS error during transformation from '{source_crs_str}' to '{target_crs_str}': {e}. Input bbox: {bbox}")
         return None
     except Exception as e:
         logger.error(f"Unexpected error during bounding box transformation: {e}", exc_info=True)
@@ -84,18 +86,15 @@ def get_metric_dimensions(projected_bbox: tuple[float, float, float, float],
             logger.error(f"Invalid coordinate types in projected_bbox: {projected_bbox}. Must be numeric.")
             return None
         if not crs_units_are_metric:
-            logger.warning(f"Calculating dimensions for bbox {projected_bbox}, but CRS units are not confirmed metric. "
-                           "Resulting width/height will be in CRS units.")
-        if min_x > max_x:
-            logger.warning(f"min_x ({min_x}) is greater than max_x ({max_x}) in projected_bbox. Using absolute difference for width.")
-        if min_y > max_y:
-            logger.warning(f"min_y ({min_y}) is greater than max_y ({max_y}) in projected_bbox. Using absolute difference for height.")
+            logger.warning(f"Calculating dimensions for bbox {projected_bbox}, but CRS units are not confirmed metric.")
+        if min_x > max_x: logger.warning(f"min_x ({min_x}) > max_x ({max_x}) in projected_bbox. Using abs diff.")
+        if min_y > max_y: logger.warning(f"min_y ({min_y}) > max_y ({max_y}) in projected_bbox. Using abs diff.")
         width = abs(max_x - min_x)
         height = abs(max_y - min_y)
-        logger.info(f"Calculated dimensions for bbox {projected_bbox}: Width={width:.2f}, Height={height:.2f} (units of input CRS)")
+        logger.info(f"Calculated dimensions for bbox {projected_bbox}: W={width:.2f}, H={height:.2f} (CRS units)")
         return width, height
     except TypeError:
-        logger.error(f"Invalid input type for projected_bbox or its elements: {projected_bbox}.", exc_info=True)
+        logger.error(f"Invalid input type for projected_bbox: {projected_bbox}.", exc_info=True)
         return None
     except Exception as e:
         logger.error(f"Unexpected error calculating metric dimensions for {projected_bbox}: {e}", exc_info=True)
@@ -105,7 +104,7 @@ def geocode_place_name(place_name_query: str, user_agent_app_name: str = "Terrai
     """
     Geocodes a place name query to latitude and longitude using Nominatim.
     """
-    if Nominatim is None:
+    if not GEOPY_AVAILABLE or Nominatim is None: # Check GEOPY_AVAILABLE as well
         logger.error("Geopy library (Nominatim) not available. Cannot geocode.")
         return None
     logger.info(f"Geocoding place name: '{place_name_query}' with user_agent: '{user_agent_app_name}'")
@@ -113,196 +112,138 @@ def geocode_place_name(place_name_query: str, user_agent_app_name: str = "Terrai
         geolocator = Nominatim(user_agent=user_agent_app_name)
         location = geolocator.geocode(place_name_query, timeout=10)
         if location:
-            logger.info(f"Successfully geocoded '{place_name_query}' to: Latitude={location.latitude:.6f}, Longitude={location.longitude:.6f}")
+            logger.info(f"Successfully geocoded '{place_name_query}' to: Lat={location.latitude:.6f}, Lon={location.longitude:.6f}")
             return location.latitude, location.longitude
         else:
-            logger.warning(f"Could not geocode '{place_name_query}'. Place not found or no results returned by Nominatim.")
+            logger.warning(f"Could not geocode '{place_name_query}'. Place not found or no results by Nominatim.")
             return None
-    except GeocoderTimedOut:
-        logger.error(f"Geocoder service (Nominatim) timed out for query: '{place_name_query}'.")
-        return None
-    except GeocoderUnavailable:
-        logger.error(f"Geocoder service (Nominatim) unavailable for query: '{place_name_query}'. Check internet connection or service status.")
-        return None
-    except GeocoderServiceError as e:
-        logger.error(f"Geocoder service (Nominatim) error for query: '{place_name_query}': {e}")
-        return None
-    except Exception as e:
-        logger.error(f"An unexpected error occurred during geocoding for '{place_name_query}': {e}", exc_info=True)
-        return None
+    except GeocoderTimedOut: logger.error(f"Geocoder (Nominatim) timed out for: '{place_name_query}'."); return None
+    except GeocoderUnavailable: logger.error(f"Geocoder (Nominatim) unavailable for: '{place_name_query}'."); return None
+    except GeocoderServiceError as e: logger.error(f"Geocoder (Nominatim) error for: '{place_name_query}': {e}"); return None
+    except Exception as e: logger.error(f"Unexpected error during geocoding for '{place_name_query}': {e}", exc_info=True); return None
 
 def calculate_bbox_from_center_and_distance(
-    center_lat: float,
-    center_lon: float,
-    distance_km: float,
-    use_great_circle: bool = False
+    center_lat: float, center_lon: float, distance_km: float, use_great_circle: bool = False
 ) -> tuple[float, float, float, float] | None:
     """
-    Calculates a bounding box (west, south, east, north) given a center point
-    and a distance to extend in each cardinal direction.
+    Calculates a bounding box (west, south, east, north) given a center point and distance.
     """
-    if geodesic is None or great_circle is None: # Check if geopy.distance was imported
-        logger.error("Geopy library (distance functions) not available. Cannot calculate bounding box from center.")
+    if not GEOPY_AVAILABLE or geodesic is None or great_circle is None:
+        logger.error("Geopy library (distance functions) not available. Cannot calculate bounding box.")
         return None
-
-    if not (-90 <= center_lat <= 90):
-        logger.error(f"Invalid center_lat: {center_lat}. Must be between -90 and 90.")
-        return None
-    if not (-180 <= center_lon <= 180):
-        logger.error(f"Invalid center_lon: {center_lon}. Must be between -180 and 180.")
-        return None
-    if distance_km <= 0:
-        logger.error(f"Invalid distance_km: {distance_km}. Must be positive.")
-        return None
-
-    logger.info(f"Calculating bounding box from center ({center_lat:.4f}, {center_lon:.4f}) with distance {distance_km} km.")
-
-    center_point = (center_lat, center_lon)
-    dist_calc_method = great_circle if use_great_circle else geodesic
-
+    if not (-90 <= center_lat <= 90): logger.error(f"Invalid center_lat: {center_lat}."); return None
+    if not (-180 <= center_lon <= 180): logger.error(f"Invalid center_lon: {center_lon}."); return None
+    if distance_km <= 0: logger.error(f"Invalid distance_km: {distance_km}. Must be positive."); return None
+    logger.info(f"Calculating bbox from center ({center_lat:.4f}, {center_lon:.4f}), dist {distance_km} km.")
+    center_point = (center_lat, center_lon); dist_calc_method = great_circle if use_great_circle else geodesic
     try:
         north_point = dist_calc_method(kilometers=distance_km).destination(point=center_point, bearing=0)
         south_point = dist_calc_method(kilometers=distance_km).destination(point=center_point, bearing=180)
         east_point = dist_calc_method(kilometers=distance_km).destination(point=center_point, bearing=90)
         west_point = dist_calc_method(kilometers=distance_km).destination(point=center_point, bearing=270)
-
-        min_lat = south_point.latitude
-        max_lat = north_point.latitude
-        min_lon = west_point.longitude
-        max_lon = east_point.longitude
-
-        if min_lat > max_lat:
-             logger.warning("Calculated min_lat > max_lat, swapping.")
-             min_lat, max_lat = max_lat, min_lat
-
+        min_lat, max_lat = south_point.latitude, north_point.latitude
+        min_lon, max_lon = west_point.longitude, east_point.longitude
+        if min_lat > max_lat: logger.warning("Calculated min_lat > max_lat, swapping."); min_lat, max_lat = max_lat, min_lat
         bbox = (min_lon, min_lat, max_lon, max_lat)
-        logger.info(f"Calculated BBox: West={bbox[0]:.4f}, South={bbox[1]:.4f}, East={bbox[2]:.4f}, North={bbox[3]:.4f}")
+        logger.info(f"Calculated BBox: W={bbox[0]:.4f}, S={bbox[1]:.4f}, E={bbox[2]:.4f}, N={bbox[3]:.4f}")
         return bbox
+    except Exception as e: logger.error(f"Unexpected error during bbox calculation: {e}", exc_info=True); return None
 
+def get_utm_epsg_from_latlon(latitude: float, longitude: float) -> str | None:
+    """
+    Determines the UTM EPSG code from latitude and longitude.
+    """
+    global_logger_available = 'logger' in globals() and logger is not None and hasattr(logger, "error")
+
+    if not UTM_AVAILABLE:
+        log_msg = "The 'utm' library is not installed. Cannot perform automatic UTM EPSG detection."
+        if global_logger_available: logger.error(log_msg)
+        else: print(f"ERROR: {log_msg}")
+        return None
+    if not (-90 <= latitude <= 90):
+        log_msg = f"Invalid latitude: {latitude}. Must be between -90 and 90."
+        if global_logger_available: logger.error(log_msg)
+        else: print(f"ERROR: {log_msg}")
+        return None
+    if not (-180 <= longitude <= 180):
+        log_msg = f"Invalid longitude: {longitude}. Must be between -180 and 180."
+        if global_logger_available: logger.error(log_msg)
+        else: print(f"ERROR: {log_msg}")
+        return None
+    try:
+        utm_info = utm.from_latlon(latitude, longitude)
+        zone_number = utm_info[2]
+        is_northern_hemisphere = latitude >= 0
+        epsg_base = 32600 if is_northern_hemisphere else 32700
+        epsg_code_val = epsg_base + zone_number
+        epsg_code_str = f"EPSG:{epsg_code_val}"
+        if global_logger_available:
+            logger.info(f"Determined UTM EPSG for ({latitude:.4f}, {longitude:.4f}) as: {epsg_code_str} (Zone {zone_number}{utm_info[3]})")
+        return epsg_code_str
+    except utm.error.OutOfRangeError: # type: ignore
+        log_msg = (f"Coords ({latitude:.4f}, {longitude:.4f}) are out of standard UTM range. "
+                   "Consider Polar Stereographic (e.g., EPSG:32661 Arctic, EPSG:32761 Antarctic).")
+        if global_logger_available: logger.warning(log_msg)
+        else: print(f"WARNING: {log_msg}")
+        return None
     except Exception as e:
-        logger.error(f"An unexpected error occurred during bounding box calculation: {e}", exc_info=True)
+        log_msg = f"Unexpected error in UTM EPSG detection for ({latitude:.4f}, {longitude:.4f}): {e}"
+        if global_logger_available: logger.error(log_msg, exc_info=True)
+        else: print(f"ERROR: {log_msg}")
         return None
 
 if __name__ == '__main__':
-    try:
-        from logger_setup import setup_logger
-        logger_utils_demo = setup_logger("CoordinateUtilsDemo", level=logging.DEBUG)
-    except ImportError:
-        logger.setLevel(logging.DEBUG)
-        logger_utils_demo = logger
-
+    try: from logger_setup import setup_logger; logger_utils_demo = setup_logger("CoordinateUtilsDemo", level=logging.DEBUG)
+    except ImportError: logger.setLevel(logging.DEBUG); logger_utils_demo = logger
     logger_utils_demo.info("--- Starting CoordinateUtilsDemo ---")
-
-    wgs84_bbox_berlin = (13.0, 52.3, 13.7, 52.6)
-    source_epsg_4326 = "EPSG:4326"
-    utm32n_epsg = "EPSG:32632"
-    logger_utils_demo.info(f"Attempting to transform Berlin bbox: {wgs84_bbox_berlin} from {source_epsg_4326} to {utm32n_epsg}")
-    projected_bbox_berlin = transform_bbox_to_crs(wgs84_bbox_berlin, source_epsg_4326, utm32n_epsg)
-    if projected_bbox_berlin:
-        logger_utils_demo.info(f"Projected Berlin bbox ({utm32n_epsg}): {projected_bbox_berlin}")
-        dimensions_berlin = get_metric_dimensions(projected_bbox_berlin, crs_units_are_metric=True)
-        if dimensions_berlin:
-            logger_utils_demo.info(f"Metric dimensions of Berlin bbox: Width={dimensions_berlin[0]:.2f}m, Height={dimensions_berlin[1]:.2f}m")
-    else:
-        logger_utils_demo.error("Failed to transform Berlin bbox.")
-
-    logger_utils_demo.info("\nAttempting transformation with an invalid source CRS:")
-    invalid_src_crs_bbox = transform_bbox_to_crs(wgs84_bbox_berlin, "EPSG:INVALID_SRC", utm32n_epsg)
-    if not invalid_src_crs_bbox:
-        logger_utils_demo.info("Transformation with invalid source CRS correctly failed.")
-
-    logger_utils_demo.info("\nAttempting transformation with an invalid target CRS:")
-    invalid_target_crs_bbox = transform_bbox_to_crs(wgs84_bbox_berlin, source_epsg_4326, "EPSG:INVALID_TARGET")
-    if not invalid_target_crs_bbox:
-        logger_utils_demo.info("Transformation with invalid target CRS correctly failed.")
-
-    logger_utils_demo.info("\nTesting get_metric_dimensions with invalid input types:")
-    invalid_dims_type = get_metric_dimensions(("a", "b", "c", "d")) # type: ignore
-    if not invalid_dims_type:
-        logger_utils_demo.info("get_metric_dimensions with non-numeric tuple elements correctly failed.")
-    invalid_dims_format = get_metric_dimensions((10, 20, 30)) # type: ignore
-    if not invalid_dims_format:
-        logger_utils_demo.info("get_metric_dimensions with incorrect tuple length correctly failed.")
-
-    logger_utils_demo.info("\nTesting get_metric_dimensions with out-of-order coords (should use abs diff):")
-    unordered_bbox = (500000.0, 6000000.0, 400000.0, 5900000.0)
-    dims_unordered = get_metric_dimensions(unordered_bbox)
-    if dims_unordered:
-        logger_utils_demo.info(f"Dimensions of unordered bbox: Width={dims_unordered[0]:.2f}, Height={dims_unordered[1]:.2f} (abs values used)")
-
-    wgs84_bbox_la = (-118.5, 33.7, -117.8, 34.2)
-    utm11n_epsg = "EPSG:32611"
-    logger_utils_demo.info(f"\nAttempting to transform LA bbox: {wgs84_bbox_la} from {source_epsg_4326} to {utm11n_epsg}")
-    projected_bbox_la = transform_bbox_to_crs(wgs84_bbox_la, source_epsg_4326, utm11n_epsg)
-    if projected_bbox_la:
-        logger_utils_demo.info(f"Projected LA bbox ({utm11n_epsg}): {projected_bbox_la}")
-        dimensions_la = get_metric_dimensions(projected_bbox_la)
-        if dimensions_la:
-            logger_utils_demo.info(f"Metric dimensions of LA bbox: Width={dimensions_la[0]:.2f}m, Height={dimensions_la[1]:.2f}m")
-    else:
-        logger_utils_demo.error("Failed to transform LA bbox.")
+    # ... (Existing tests for transform_bbox_to_crs, get_metric_dimensions) ...
+    wgs84_bbox_berlin=(13.0,52.3,13.7,52.6); src_epsg="EPSG:4326"; utm32n="EPSG:32632"
+    logger_utils_demo.info(f"Transform Berlin bbox: {wgs84_bbox_berlin} from {src_epsg} to {utm32n}")
+    pbb = transform_bbox_to_crs(wgs84_bbox_berlin,src_epsg,utm32n)
+    if pbb: logger_utils_demo.info(f"Projected: {pbb}"); dims=get_metric_dimensions(pbb); print(dims) # Shortened
+    else: logger_utils_demo.error("Berlin transform failed.")
+    if not transform_bbox_to_crs(wgs84_bbox_berlin,"EPSG:INVALID",utm32n): logger_utils_demo.info("Invalid src CRS handled.")
+    if not transform_bbox_to_crs(wgs84_bbox_berlin,src_epsg,"EPSG:INVALID"): logger_utils_demo.info("Invalid target CRS handled.")
+    if not get_metric_dimensions(("a","b","c","d")):logger_utils_demo.info("Invalid types for get_metric_dimensions handled.") # type: ignore
+    if not get_metric_dimensions((1,2,3)):logger_utils_demo.info("Invalid tuple length for get_metric_dimensions handled.") # type: ignore
+    udims=get_metric_dimensions((5,6,4,5)); logger_utils_demo.info(f"Unordered get_metric_dimensions: {udims}")
 
     logger_utils_demo.info("\n--- Geocoding Tests ---")
-    if Nominatim is not None: # Check if geopy was imported
-        place = "Mount Everest"
-        coords = geocode_place_name(place)
-        if coords:
-            logger_utils_demo.info(f"Coordinates for {place}: Latitude={coords[0]:.4f}, Longitude={coords[1]:.4f}")
-        else:
-            logger_utils_demo.warning(f"Could not geocode {place}. This might be due to no internet or Nominatim policy/availability.")
-        place_fail = "HopefullyThisPlaceDoesNotExist12345XYZAndReturnsNoResults"
-        coords_fail = geocode_place_name(place_fail)
-        if not coords_fail:
-            logger_utils_demo.info(f"Correctly failed to geocode non-existent place: '{place_fail}'")
-        specific_place = "Eiffel Tower, Paris"
-        specific_coords = geocode_place_name(specific_place)
-        if specific_coords:
-            logger_utils_demo.info(f"Coordinates for {specific_place}: Latitude={specific_coords[0]:.4f}, Longitude={specific_coords[1]:.4f}")
-        else:
-            logger_utils_demo.warning(f"Could not geocode {specific_place}. This might be due to no internet or Nominatim policy/availability.")
-    else:
-        logger_utils_demo.warning("Skipping geocoding tests as Geopy/Nominatim is not available.")
+    if GEOPY_AVAILABLE and Nominatim is not None:
+        for p in ["Mount Everest", "HopefullyThisPlaceDoesNotExist12345XYZ", "Eiffel Tower, Paris"]:
+            coords = geocode_place_name(p)
+            if coords: logger_utils_demo.info(f"Coords for {p}: Lat={coords[0]:.4f}, Lon={coords[1]:.4f}")
+            else: logger_utils_demo.warning(f"Could not geocode {p} (or correctly failed).")
+    else: logger_utils_demo.warning("Skipping geocoding tests: Geopy/Nominatim unavailable.")
 
     logger_utils_demo.info("\n--- Bounding Box Calculation Tests ---")
-    if geodesic is not None and great_circle is not None: # Check if geopy.distance was imported
-        denver_coords_direct = (39.7392, -104.9903) # Denver, CO approx coords
-        distance = 50
-        logger_utils_demo.info(f"Calculating {distance}km bbox around Denver ({denver_coords_direct[0]:.4f}, {denver_coords_direct[1]:.4f}) using geodesic")
-        bbox_denver = calculate_bbox_from_center_and_distance(denver_coords_direct[0], denver_coords_direct[1], distance)
-        if bbox_denver:
-            logger_utils_demo.info(f"Denver {distance}km BBox (W,S,E,N): ({bbox_denver[0]:.4f}, {bbox_denver[1]:.4f}, {bbox_denver[2]:.4f}, {bbox_denver[3]:.4f})")
-            # Optional: Verify dimensions (approximate)
-            # projected_bbox_denver_val = transform_bbox_to_crs(bbox_denver, "EPSG:4326", "EPSG:32613") # UTM Zone 13N for Denver
-            # if projected_bbox_denver_val:
-            #     dims = get_metric_dimensions(projected_bbox_denver_val)
-            #     if dims: logger_utils_demo.info(f"Approx. metric dimensions: W={dims[0]/1000:.1f}km, H={dims[1]/1000:.1f}km (Geodesic)")
+    if GEOPY_AVAILABLE and geodesic is not None:
+        d_lat,d_lon,dist_km = 39.7392,-104.9903,50
+        logger_utils_demo.info(f"Calc {dist_km}km bbox around Denver ({d_lat:.4f},{d_lon:.4f})")
+        for gc_opt in [False, True]:
+            bbox_d = calculate_bbox_from_center_and_distance(d_lat,d_lon,dist_km,use_great_circle=gc_opt)
+            if bbox_d: logger_utils_demo.info(f"Denver {dist_km}km BBox (GC={gc_opt}): (W={bbox_d[0]:.4f},S={bbox_d[1]:.4f},E={bbox_d[2]:.4f},N={bbox_d[3]:.4f})")
+        if not calculate_bbox_from_center_and_distance(95,0,10): logger_utils_demo.info("Invalid lat for bbox calc handled.")
+        if not calculate_bbox_from_center_and_distance(0,0,-10): logger_utils_demo.info("Invalid dist for bbox calc handled.")
+        np_lat,np_lon,np_dist = 89.95,0.0,10
+        logger_utils_demo.info(f"Calc {np_dist}km bbox around N Pole ({np_lat:.2f},{np_lon})")
+        bbox_p = calculate_bbox_from_center_and_distance(np_lat,np_lon,np_dist)
+        if bbox_p: logger_utils_demo.info(f"N Pole {np_dist}km BBox: (W={bbox_p[0]:.4f},S={bbox_p[1]:.4f},E={bbox_p[2]:.4f},N={bbox_p[3]:.4f})")
+        fj_lat,fj_lon,fj_dist = -18.1416,178.4419,200
+        logger_utils_demo.info(f"Calc {fj_dist}km bbox around Fiji ({fj_lat:.4f},{fj_lon})")
+        bbox_fj = calculate_bbox_from_center_and_distance(fj_lat,fj_lon,fj_dist)
+        if bbox_fj: logger_utils_demo.info(f"Fiji {fj_dist}km BBox: (W={bbox_fj[0]:.4f},S={bbox_fj[1]:.4f},E={bbox_fj[2]:.4f},N={bbox_fj[3]:.4f})")
+    else: logger_utils_demo.warning("Skipping BBox calc tests: Geopy distance unavailable.")
 
-        logger_utils_demo.info(f"Calculating {distance}km bbox around Denver ({denver_coords_direct[0]:.4f}, {denver_coords_direct[1]:.4f}) using great_circle")
-        bbox_denver_gc = calculate_bbox_from_center_and_distance(denver_coords_direct[0], denver_coords_direct[1], distance, use_great_circle=True)
-        if bbox_denver_gc:
-             logger_utils_demo.info(f"Denver {distance}km BBox (Great Circle) (W,S,E,N): ({bbox_denver_gc[0]:.4f}, {bbox_denver_gc[1]:.4f}, {bbox_denver_gc[2]:.4f}, {bbox_denver_gc[3]:.4f})")
-
-        invalid_bbox_calc = calculate_bbox_from_center_and_distance(95, 0, 10)
-        if not invalid_bbox_calc: logger_utils_demo.info("Correctly handled invalid latitude for bbox calculation.")
-        invalid_bbox_calc_dist = calculate_bbox_from_center_and_distance(0, 0, -10)
-        if not invalid_bbox_calc_dist: logger_utils_demo.info("Correctly handled invalid distance for bbox calculation.")
-
-        north_pole_lat, north_pole_lon = 89.95, 0.0 # Closer to pole
-        distance_pole = 10
-        logger_utils_demo.info(f"Calculating {distance_pole}km bbox around North Pole area ({north_pole_lat:.2f}, {north_pole_lon})")
-        bbox_pole = calculate_bbox_from_center_and_distance(north_pole_lat, north_pole_lon, distance_pole)
-        if bbox_pole:
-             logger_utils_demo.info(f"North Pole area {distance_pole}km BBox (W,S,E,N): ({bbox_pole[0]:.4f}, {bbox_pole[1]:.4f}, {bbox_pole[2]:.4f}, {bbox_pole[3]:.4f})")
-
-        # Test near anti-meridian (e.g., Fiji, direct coords to avoid geocoding dependency here)
-        # Using direct coordinates for Suva, Fiji for robustness if geocoding fails
-        lat_fiji, lon_fiji = -18.1416, 178.4419
-        distance_fiji = 200 # km, larger distance to potentially cross anti-meridian more clearly
-        logger_utils_demo.info(f"Calculating {distance_fiji}km bbox around Fiji test coords ({lat_fiji:.4f}, {lon_fiji:.4f})")
-        bbox_fiji = calculate_bbox_from_center_and_distance(lat_fiji, lon_fiji, distance_fiji)
-        if bbox_fiji:
-            logger_utils_demo.info(f"Fiji test {distance_fiji}km BBox (W,S,E,N): ({bbox_fiji[0]:.4f}, {bbox_fiji[1]:.4f}, {bbox_fiji[2]:.4f}, {bbox_fiji[3]:.4f})")
-    else:
-        logger_utils_demo.warning("Skipping BBox calculation tests as Geopy distance functions are not available.")
+    logger_utils_demo.info("\n--- UTM EPSG Detection Tests ---")
+    if UTM_AVAILABLE:
+        test_locs = {"Denver":(39.7392,-104.9903,"EPSG:32613"), "Paris":(48.8566,2.3522,"EPSG:32631"), "Sydney":(-33.8688,151.2093,"EPSG:32756")}
+        for name,(lat,lon,expected_epsg) in test_locs.items():
+            epsg = get_utm_epsg_from_latlon(lat,lon)
+            logger_utils_demo.info(f"UTM EPSG for {name} ({lat},{lon}): {epsg}")
+            if epsg != expected_epsg: logger_utils_demo.error(f"Expected {expected_epsg} for {name}, got {epsg}")
+        if not get_utm_epsg_from_latlon(95.0,0.0): logger_utils_demo.info("Invalid lat for UTM EPSG handled.")
+        if not get_utm_epsg_from_latlon(85.0,0.0): logger_utils_demo.info("Polar region for UTM EPSG handled (returned None).")
+    else: logger_utils_demo.warning("UTM library not available, skipping UTM EPSG detection tests.")
 
     logger_utils_demo.info("\n--- CoordinateUtilsDemo finished ---")

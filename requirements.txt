@@ -23,6 +23,9 @@ Shapely>=1.7.0,<2.1.0
 # For geocoding place names and distance calculations
 geopy>=2.0.0,<2.5.0
 
+# For Universal Transverse Mercator (UTM) zone calculations
+utm>=0.7,<0.8
+
 # Note: Ensure GDAL is installed on your system for Rasterio to work correctly.
 # The versions listed here are a baseline; newer compatible versions may also work.
 # It's recommended to use a virtual environment.

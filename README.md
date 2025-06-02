@@ -8,8 +8,9 @@ This Python tool facilitates the recreation of real-world locations within virtu
 
 *   Fetches Digital Elevation Model (DEM) data from online sources (currently supports OpenTopography API).
 *   Determines Area of Interest (AOI) via:
-    *   Direct bounding box (latitude, longitude) input.
-    *   Place name geocoding (e.g., "Mount Everest") and a specified distance to define the surrounding area.
+    *   Command-line input of direct bounding box (latitude, longitude).
+    *   Command-line input of a place name (geocoded to a center point) and a specified distance to define the surrounding area.
+*   Automatic UTM zone and EPSG code detection when AOI is defined by placename (can be overridden).
 *   Processes raw DEM data:
     *   Reads standard GeoTIFF files.
     *   Scales elevation values to the 16-bit unsigned integer range (0-65535) required by Unreal Engine.
@@ -19,21 +20,23 @@ This Python tool facilitates the recreation of real-world locations within virtu
     *   Supports tiling of large DEMs into smaller, manageable heightmap chunks (PNG or RAW+JSON) compatible with Unreal Engine's World Partition.
 *   Calculates precise X, Y, and Z scale factors and Z location offset for Unreal Engine import, ensuring accurate 1:1 terrain scale (applies globally for tiled landscapes).
 *   Generates a human-readable report detailing all parameters needed for manual import into Unreal Engine, including tiling information if used.
-*   Modular design for extensibility (e.g., adding new APIs, processing steps).
+*   Modular design for extensibility.
 *   Configurable logging for monitoring and debugging.
-*   Unit tests for core components to ensure reliability.
+*   Unit tests for core components.
 
 ## 3. Core Technologies and Libraries Used
 
 *   **Python 3.9+**
-*   **Requests**: For making HTTP calls to web APIs (e.g., OpenTopography).
-*   **Rasterio**: For reading, writing, and manipulating raster geospatial data (GeoTIFFs).
-*   **GDAL**: (As a dependency of Rasterio) For comprehensive geospatial data format translation and processing.
-*   **PyProj**: For cartographic projections and Coordinate Reference System (CRS) transformations.
-*   **NumPy**: For numerical computation, especially array manipulation for raster data.
-*   **Pillow (PIL Fork)**: For image processing, particularly saving NumPy arrays as 16-bit PNG files.
-*   **Shapely**: (As a dependency of Rasterio or used directly) For geometric operations.
-*   **Geopy**: For geocoding place names (converting addresses/names to coordinates) and calculating distances on Earth's surface.
+*   **argparse**: For parsing command-line arguments.
+*   **Requests**: For making HTTP calls to web APIs.
+*   **Rasterio**: For reading, writing, and manipulating raster geospatial data.
+*   **GDAL**: (As a dependency of Rasterio).
+*   **PyProj**: For cartographic projections and CRS transformations.
+*   **NumPy**: For numerical computation.
+*   **Pillow (PIL Fork)**: For image processing (saving 16-bit PNGs).
+*   **Shapely**: For geometric operations.
+*   **Geopy**: For geocoding place names and calculating distances.
+*   **utm**: For converting latitude/longitude to UTM zone numbers and determining EPSG codes.
 *   **unittest & unittest.mock**: For unit testing.
 
 ## 4. Project Structure Overview
@@ -41,10 +44,10 @@ This Python tool facilitates the recreation of real-world locations within virtu
 ```
 .
 ├── terrain_tool/                 # Main application package (if structured as such)
-│   ├── main_controller.py        # Orchestrates the entire workflow
+│   ├── main_controller.py        # Orchestrates the entire workflow via CLI
 │   ├── api_handler.py            # Handles interactions with elevation data APIs
 │   ├── dem_processor.py          # GIS and raster processing tasks (including tiling)
-│   ├── coordinate_utils.py       # Coordinate transformation and geocoding functions
+│   ├── coordinate_utils.py       # Coordinate transformation, geocoding, UTM functions
 │   ├── unreal_preparer.py        # Calculates UE specific parameters and generates reports
 │   ├── config_manager.py         # Manages configuration (API keys, paths)
 │   ├── logger_setup.py           # Configures logging
@@ -55,15 +58,13 @@ This Python tool facilitates the recreation of real-world locations within virtu
 │   ├── test_config_manager.py
 │   ├── test_coordinate_utils.py
 │   ├── ... (other test files)
-├── output_data_main_controller/  # Default directory for generated output files from main_controller
-│   └── terrain_tiles/            # Default subdirectory for tiled output
-├── output_data_test/             # Directory for test output files from individual module tests
+├── output_data_cli/              # Default directory for generated output files when using CLI
 ├── README.md                     # This file
 ├── requirements.txt              # Python dependencies
 ├── LICENSE                       # Project license file
 └── .gitignore                    # Specifies intentionally untracked files
 ```
-*(Note: The `terrain_tool/` subdirectory is conceptual if you're running scripts directly from the root. If run as a package, imports would be relative like `from . import api_handler`)*
+*(Note: The `terrain_tool/` subdirectory is conceptual if you're running scripts directly from the root.)*
 
 ## 5. Setup and Installation
 
@@ -71,10 +72,7 @@ This Python tool facilitates the recreation of real-world locations within virtu
     *   Python 3.9 or higher.
     *   `pip` (Python package installer).
     *   Git (for cloning the repository).
-    *   GDAL: Rasterio depends on GDAL. Installation varies by OS:
-        *   **Windows**: Consider using `pip install GDAL` after installing a precompiled binary (e.g., from [GISInternals](https://www.gisinternals.com/release.php) or via OSGeo4W). Alternatively, using Conda can simplify this: `conda install gdal`.
-        *   **macOS**: `brew install gdal` or `conda install gdal`.
-        *   **Linux**: `sudo apt-get install libgdal-dev gdal-bin` (Debian/Ubuntu) or equivalent for your distribution. `conda install gdal` is also an option.
+    *   GDAL: Rasterio depends on GDAL. Installation varies by OS (see README section in project for details, or use Conda: `conda install gdal`).
 
 2.  **Clone the Repository (if applicable)**:
     ```bash
@@ -85,172 +83,151 @@ This Python tool facilitates the recreation of real-world locations within virtu
 3.  **Create a Virtual Environment (Recommended)**:
     ```bash
     python -m venv venv
-    # On Windows
-    venv\Scripts\activate
-    # On macOS/Linux
-    source venv/bin/activate
+    # On Windows: venv\Scripts\activate
+    # On macOS/Linux: source venv/bin/activate
     ```
 
 4.  **Install Dependencies**:
-    A `requirements.txt` file is provided. Install using:
     ```bash
     pip install -r requirements.txt
     ```
 
 ## 6. Configuration
 
-1.  **API Keys**:
-    This tool requires API keys for some data sources. Currently, OpenTopography is supported.
-    *   Sign up for an [OpenTopography API Key](https://portal.opentopography.org/myopentopo).
-2.  **`config.json`**:
-    *   Rename `config.json.example` to `config.json` in the root directory (or the same directory as `config_manager.py`).
-    *   Edit `config.json` to add your API keys:
+1.  **API Keys (Optional - Can be passed via CLI)**:
+    *   For OpenTopography: Sign up at [OpenTopography API Key](https://portal.opentopography.org/myopentopo).
+    *   Keys can be stored in `config.json` (renamed from `config.json.example`) or as environment variables (e.g., `OPENTOPOGRAPHY_API_KEY`). CLI `--api_key` argument overrides these.
+    *   **Important**: `config.json` is in `.gitignore`; do not commit sensitive keys.
         ```json
         {
-            "api_keys": {
-                "OpenTopography": "YOUR_OPENTOPOGRAPHY_API_KEY_HERE"
-            },
-            "settings": {
-                "default_output_path": "./output_data",
-                "default_dem_resolution": 30
-            }
+            "api_keys": { "OpenTopography": "YOUR_KEY_HERE" },
+            "settings": { "default_output_path": "./output_data" }
         }
         ```
-    *   Alternatively, API keys can be set as environment variables (e.g., `OPENTOPOGRAPHY_API_KEY="YOUR_KEY_HERE"`). Environment variables take precedence.
-    *   **Important**: `config.json` is included in `.gitignore` and should **not** be committed to version control if it contains sensitive API keys.
 
 ## 7. Usage Guidelines
 
-The primary entry point for the tool is `main_controller.py`.
+The tool is operated via the command line using `main_controller.py`.
 
-1.  **Configure Input Parameters in `main_controller.py`**:
-    Open `main_controller.py` and adjust parameters in the `# --- Configuration ---`, `# --- Input Mode ---`, and `# --- Tiling Configuration ---` sections:
+**Command Structure:**
+```bash
+python main_controller.py [AOI_OPTIONS] [OTHER_OPTIONS]
+```
 
-    *   **`INPUT_MODE`**: Set to either `"BBOX"` or `"PLACENAME"`.
-        *   `"BBOX"`: Uses manually defined bounding box coordinates via `AOI_BBOX_WGS84_MANUAL`.
-        *   `"PLACENAME"`: Uses a place name (`PLACE_NAME_QUERY`), geocodes it to a center point, and calculates a bounding box based on `DISTANCE_KM_AROUND_PLACE`.
+**Area of Interest (AOI) Options (Required - Choose one method):**
 
-    *   **If `INPUT_MODE = "PLACENAME"`**:
-        *   `PLACE_NAME_QUERY`: The place name string to geocode (e.g., `"Mount Everest"`, `"Denver, Colorado"`).
-        *   `DISTANCE_KM_AROUND_PLACE`: The distance in kilometers to extend the bounding box around the geocoded center point (e.g., `15`).
+*   **Method 1: By Place Name & Distance:**
+    *   `--placename "Your Place Name"`: Specify the name of the location (e.g., "Mount Everest", "Denver, Colorado").
+    *   `--distance KILOMETERS`: Specify the distance in kilometers to extend the bounding box around the geocoded center of the placename. *Required if `--placename` is used.*
 
-    *   **If `INPUT_MODE = "BBOX"`**:
-        *   `AOI_BBOX_WGS84_MANUAL`: The Area of Interest as a tuple `(west_longitude, south_latitude, east_longitude, north_latitude)` in WGS84 decimal degrees (e.g., `(86.85, 27.90, 87.00, 28.05)`).
+*   **Method 2: By Bounding Box:**
+    *   `--bbox WEST SOUTH EAST NORTH`: Specify the exact bounding box coordinates in WGS84 decimal degrees (e.g., `--bbox 2.25 48.8 2.35 48.9`).
 
-    *   **Required for all modes**:
-        *   `TARGET_UTM_EPSG`: The EPSG code for the target UTM zone corresponding to your AOI (e.g., `"EPSG:32645"` for UTM Zone 45N which covers Mount Everest). This is crucial for correct scaling in Unreal Engine and **must be set accurately by the user based on the final AOI's location.** You can find appropriate EPSG codes from sites like [epsg.io](https://epsg.io/).
-        *   `DEM_TYPE_API`: The DEM type for the API (e.g., for OpenTopography: `"SRTMGL1"`).
-        *   `OUTPUT_DIR`: Directory for output files (default: `./output_data_main_controller`).
-        *   `OUTPUT_HEIGHTMAP_FORMAT`: Choose `"PNG"`, `"RAW"`, or `"BOTH"`.
+**Projection Options:**
 
-    *   **Tiling Configuration (Optional)**:
-        *   `ENABLE_TILING`: Set to `True` to enable tiling for large terrains, or `False` (default) for a single output heightmap.
-        *   `TILE_SIZE_X_PX`, `TILE_SIZE_Y_PX`: Desired dimensions (width, height) of each tile in pixels (vertices). Common Unreal Engine landscape sizes like 505 (505x505), 1009 (1009x1009), 2017 (2017x2017) are recommended. These sizes are typically calculated as `((QuadsPerSection * SectionsPerComponent * NumComponents) + 1)`.
-        *   `TILE_OUTPUT_DIR_NAME`: Name of the subdirectory (within `OUTPUT_DIR`) where tiles will be saved (e.g., `"terrain_tiles"`).
-        *   `TILE_NAMING_PREFIX`: Prefix for tile filenames (e.g., `"tile"` resulting in `tile_X0_Y0.png`).
+*   `--utm_epsg EPSG_CODE`: Specify the target UTM EPSG code (e.g., `"EPSG:32611"`).
+    *   If using `--placename` and this is **not** provided, the tool will attempt to auto-detect the UTM zone and corresponding EPSG code.
+    *   If using `--bbox`, this argument is **required** for accurate projection calculations. Look up codes on [epsg.io](https://epsg.io/).
 
-2.  **Run the Script**:
+**API & Data Source Options:**
+
+*   `--dem_type DEM_TYPE_NAME`: Specify the DEM type for the API (e.g., `"SRTMGL1"`, `"NASADEM"` for OpenTopography).
+    *   Default: `"SRTMGL1"`
+*   `--api_key YOUR_API_KEY`: Optionally provide your API key directly. This overrides keys from `config.json` or environment variables.
+
+**Output Options:**
+
+*   `--output_dir PATH_TO_DIRECTORY`: Specify the directory where all output files will be saved.
+    *   Default: `"./output_data_cli"`
+*   `--output_format {PNG|RAW|BOTH}`: Choose the output format for the heightmap(s).
+    *   Default: `"BOTH"`
+
+**Tiling Options (Optional):**
+
+*   `--enable_tiling`: Enable this flag to process the terrain as multiple tiles. If omitted, a single heightmap file is generated.
+*   `--tile_size_x PIXELS`: Desired width of each tile in pixels (vertices).
+    *   Default: `1009`
+*   `--tile_size_y PIXELS`: Desired height of each tile in pixels (vertices).
+    *   Default: `1009`
+    *(Note: Tiles are saved in a subdirectory named "terrain_tiles" within your specified `--output_dir`, using a prefix "tile".)*
+
+
+**Examples:**
+
+1.  **Get terrain for Eiffel Tower, 10km radius, output as PNG tiles (UTM auto-detected):**
     ```bash
-    python main_controller.py
+    python main_controller.py --placename "Eiffel Tower, Paris" --distance 10 --enable_tiling --tile_size_x 505 --tile_size_y 505 --output_format PNG
     ```
-    *(Or `python terrain_tool/main_controller.py` if you have it in a subdirectory and are running from the project root).*
+
+2.  **Get terrain for a specific bounding box in Colorado, output as single RAW file, specifying UTM zone:**
+    ```bash
+    python main_controller.py --bbox -105.0 39.7 -104.9 39.8 --utm_epsg EPSG:32613 --output_format RAW --output_dir ./denver_terrain
+    ```
 
 ## 8. Workflow Overview
 
-The `main_controller.py` script performs the following steps:
-1.  **Determines AOI**: Based on `INPUT_MODE`, either uses a predefined bounding box or geocodes a place name and calculates a bounding box.
-2.  **Fetches DEM Data**: Downloads raw DEM data (usually GeoTIFF) for the determined AOI from the configured API.
-3.  **Reads DEM Info**: Loads the downloaded DEM, extracting its properties (dimensions, CRS, NoData values).
-4.  **Calculates Metric Size**: Transforms the AOI's WGS84 bounding box to the target UTM CRS to determine its precise width and height in meters.
-5.  **Determines Pixel Resolution**: Calculates the effective ground resolution (meters/pixel) of the downloaded DEM based on its pixel dimensions and the AOI's metric size.
-6.  **Scales Elevation Data**: Converts the DEM's elevation values (which are typically floats representing meters) into a 0-65535 unsigned 16-bit integer range. This step also captures the actual minimum and maximum elevation values of the AOI.
-7.  **Saves Heightmap(s)**:
-    *   If tiling is enabled (`ENABLE_TILING = True`), the scaled DEM is sliced into multiple tile files and saved in the specified format(s) (PNG and/or RAW+JSON) within a subdirectory.
-    *   Otherwise, the single, full-size scaled DEM is saved in the specified format(s).
-8.  **Calculates UE Parameters**: Determines the exact Scale X, Y, Z, and Location Z values needed for Unreal Engine import. These apply globally, even for tiled landscapes.
-9.  **Generates Report**: Creates a text file summarizing the input parameters, processed data characteristics (including tiling details if applicable), and the calculated Unreal Engine import settings.
+The `main_controller.py` script, driven by command-line arguments, performs the following:
+1.  **Parses CLI Arguments**: Determines all operational parameters.
+2.  **Determines AOI**: Based on chosen mode (`--placename` or `--bbox`).
+3.  **Determines UTM EPSG**: Uses provided `--utm_epsg` or auto-detects if using placename mode.
+4.  **Fetches DEM Data**: Downloads raw DEM for the AOI.
+5.  **Reads DEM Info**: Extracts properties (dimensions, CRS).
+6.  **Calculates Metric Size**: Transforms AOI BBox to determined UTM for metric sizing.
+7.  **Determines Pixel Resolution**: Based on DEM dimensions and AOI metric size.
+8.  **Scales Elevation Data**: Converts to uint16 range, capturing min/max elevations.
+9.  **Saves Heightmap(s)**: Either as a single file or as multiple tiles if `--enable_tiling` is used.
+10. **Calculates UE Parameters**: For Unreal Engine import scales and location.
+11. **Generates Report**: Summarizing all inputs, data, and UE parameters.
 
 ## 9. Output Explanation
-
-After a successful run, you will find files in your specified `OUTPUT_DIR` (e.g., `./output_data_main_controller`):
-*   `downloaded_dem.tif`: The original DEM file downloaded from the API.
-*   **If Tiling is Disabled (`ENABLE_TILING = False`)**:
-    *   `heightmap_ue.png` (if PNG format selected): The processed 16-bit grayscale heightmap.
-    *   `heightmap_ue_raw.r16` (if RAW format selected): The raw 16-bit heightmap data.
-    *   `heightmap_ue_raw.json` (if RAW format selected): JSON sidecar for the single `.r16` file.
-*   **If Tiling is Enabled (`ENABLE_TILING = True`)**:
-    *   A subdirectory named by `TILE_OUTPUT_DIR_NAME` (e.g., `terrain_tiles/`) containing:
-        *   Multiple tile files, e.g., `tile_X0_Y0.png`, `tile_X0_Y1.png`, ... (if PNG format selected).
-        *   And/or `tile_X0_Y0.r16`, `tile_X0_Y0.json`, ... (if RAW format selected).
-    *   The JSON sidecar for each RAW tile (`.r16`) will contain metadata such as:
-        *   `width`, `height`: Dimensions of that specific tile in pixels.
-        *   `bbp`: Bits per pixel (typically 16).
-        *   `format`: Data type ("uint16").
-        *   `byte_order`: Byte order (e.g., "little", "big", "native").
-        *   `min_elevation_original`, `max_elevation_original`: These refer to the original minimum and maximum elevation (in meters) of the **entire AOI** before tiling, ensuring consistent Z-scaling across all tiles.
-*   `unreal_engine_import_guide.txt`: A text file with calculated parameters and import notes. If tiling was used, this report will include details about the tile dimensions, grid size, and naming.
+(This section remains largely the same as before, but it's understood that the output directory is now specified by `--output_dir`)
+*   `downloaded_dem.tif`
+*   If Tiling Disabled: `heightmap_ue.png`, `heightmap_ue_raw.r16`, `heightmap_ue_raw.json`
+*   If Tiling Enabled: A subdirectory `terrain_tiles/` with `tile_Xn_Ym.png`, `tile_Xn_Ym.r16`, `tile_Xn_Ym.json`. JSONs contain overall AOI min/max elevation.
+*   `unreal_engine_import_guide.txt`
 
 ## 10. Unreal Engine Import Steps
-
-Refer to the `unreal_engine_import_guide.txt` generated by the tool. The general steps are:
-1.  In Unreal Engine, open your project and go to **Landscape Mode** (Shift+2).
-2.  Choose **Manage** mode, then click **New**.
-3.  Select **Import from File**.
-4.  Browse to and select your generated heightmap file(s).
-    *   **For a single heightmap**: Select the `.png` or `.r16` file.
-    *   **For Tiled Landscapes**:
-        *   It is highly recommended to use Unreal Engine's **World Partition** system (enabled by default in new UE5 projects).
-        *   Click the "Import Tiled Landscape" button in the Landscape panel.
-        *   Select all your generated heightmap tiles (e.g., select all `tile_X*_Y*.png` or `tile_X*_Y*.r16` files). Unreal Engine will arrange them based on their filenames.
-5.  Enter the **Scale X, Y, and Z** values provided in the report. These scales are global and apply to the entire landscape or all tiles.
-6.  Set the **Landscape Actor's Z Location** (under its Transform details after creation) to the `Location Z` value from the report.
-7.  Adjust **Section Size**, **Sections Per Component**, and **Number of Components** according to your heightmap's resolution (for single files) or tile dimensions (for tiled landscapes) and Unreal Engine's recommended landscape sizes. The report will indicate the dimensions of your generated heightmap(s).
-8.  Click **Import**.
+(This section remains largely the same, with the addition for tiled landscapes)
+*   ...
+*   **For Tiled Landscapes**:
+    *   Use Unreal Engine's **World Partition** system.
+    *   Use the "Import Tiled Landscape" feature.
+    *   Global Scale X, Y, Z and Location Z from report apply to all tiles.
 
 ## 11. Running Tests
-
-To run the unit tests:
-1.  Ensure you are in the root directory of the project.
-2.  Make sure your virtual environment is activated and dependencies are installed.
-3.  Run the following command:
-    ```bash
-    python -m unittest discover tests
-    ```
-    This will automatically find and run all tests within the `tests` directory.
+```bash
+python -m unittest discover tests
+```
 
 ## 12. Future Enhancements/TODOs
-
-*   **Graphical User Interface (GUI)**: Develop a GUI for easier parameter input.
-*   **Command-Line Interface (CLI)**: Implement a proper CLI using `argparse`.
-*   **More API Support**: Add integration for other elevation data sources.
-*   **Automatic UTM Zone Detection**.
-*   **Advanced DEM Processing**: Clipping, reprojection, resampling options.
-*   **Unreal Engine Python Scripting**: Automate import into UE.
-*   **Error Handling and Validation**: Enhance input validation.
-*   **Packaging**: Package the tool for easier distribution.
+*   GUI.
+*   More API Support.
+*   Advanced DEM Processing (clipping, reprojection, resampling).
+*   UE Python Scripting for import.
+*   Packaging.
 
 ## 13. Extra Resources
-
 *   [OpenTopography API Documentation](https://opentopography.org/developers)
-*   [Nominatim Usage Policy](https://operations.osmfoundation.org/policies/nominatim/): If using the place name geocoding feature, please be aware of Nominatim's usage policy.
+*   [Nominatim Usage Policy](https://operations.osmfoundation.org/policies/nominatim/): Be mindful of this for geocoding.
 *   [Unreal Engine Landscape Technical Guide](https://docs.unrealengine.com/en-US/BuildingWorlds/Landscape/TechnicalGuide/index.html)
 *   [Unreal Engine World Partition](https://docs.unrealengine.com/en-US/BuildingWorlds/WorldPartition/)
-*   [Unreal Engine Georeferencing Plugin](https://docs.unrealengine.com/en-US/BuildingWorlds/Georeferencing/index.html)
-*   [Rasterio Documentation](https://rasterio.readthedocs.io/en/stable/)
-*   [PyProj Documentation](https://pyproj4.github.io/pyproj/stable/)
-*   [NumPy Documentation](https://numpy.org/doc/stable/)
-*   [Pillow Documentation](https://pillow.readthedocs.io/en/stable/)
-*   [EPSG.io](https://epsg.io/) - For finding EPSG codes.
+*   ... (other library links) ...
+*   [utm library documentation](https://github.com/Turbo87/utm) (or PyPI)
 
 ## 14. Version History / Changelog
+
+**v1.0.2 - 2023-10-29**
+*   Implemented Command-Line Interface (CLI) using `argparse` for all major inputs.
+*   Added automatic UTM zone and EPSG code detection (using `utm` library) when AOI is defined by placename and `--utm_epsg` is not provided.
+*   Removed hardcoded AOI and most output parameters from `main_controller.py` in favor of CLI arguments.
 
 **v1.0.1 - 2023-10-28**
 *   Added tiling functionality:
     *   DEMs can be split into multiple smaller heightmap tiles.
-    *   Configuration options for enabling tiling and tile parameters in `main_controller.py`.
+    *   Configuration options for enabling tiling and tile parameters.
     *   UE import report updated to include tiling information.
 *   Enhanced `coordinate_utils` with geocoding and bounding box calculation from center point.
-*   Updated `main_controller` to support AOI definition by place name + distance or by manual BBox.
+*   Updated `main_controller` to support AOI definition by place name + distance or by manual BBox (via hardcoded variables).
 
 **v1.0.0 - 2023-10-27**
 *   Initial release.
