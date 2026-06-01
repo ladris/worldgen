@@ -18,17 +18,19 @@ Legend: ✅ done · 🟡 in progress · ⬜ todo · 🧪 has tests
 - ✅ `terrain_service/cli.py` — init/generate/serve commands
 - ✅ CI: GitHub Actions running the test suite (30 tests, 3 Python versions)
 
-## Phase 2 — Unreal C++ Plugin `DynamicWorldStreaming`
-- ⬜ Plugin scaffold: `.uplugin`, `Build.cs`, module bootstrap
-- ⬜ `FWorldGrid` — mirror of the Python grid math (must match `CONTRACT.md`)
-- ⬜ `UTerrainDataClient` — async HTTP fetch of heightmap + manifest
-- ⬜ `ATerrainTileActor` — heightmap→`UDynamicMeshComponent`, worker-thread gen
-- ⬜ `UTileStitcher` — cross-tile shared-edge normal averaging
-- ⬜ Runtime LOD (mesh simplification / multi-res sampling)
-- ⬜ Async collision cooking
-- ⬜ `UPlayerPredictionComponent` — velocity/trajectory + buffer zones
-- ⬜ `URegionStreamingManager` — request queue, lifecycle, World Partition reg.
-- ⬜ Dev notes: required plugins (GeometryScripting), build instructions
+## Phase 2 — Unreal C++ Plugin `DynamicWorldStreaming` (written; compile in-engine)
+- ✅ Plugin scaffold: `.uplugin`, `Build.cs`, module bootstrap
+- ✅ `FWorldGrid` — mirror of the Python grid math (matches `CONTRACT.md`)
+- ✅ `UTerrainDataClient` — async HTTP fetch of `/project`, manifest + heightmap
+- ✅ `ATerrainTileActor` — heightmap→`UDynamicMeshComponent`, worker-thread gen
+- ✅ `FTileStitcher` — cross-tile shared-edge normal averaging
+- ✅ Async collision cooking (`UpdateCollision(bAsyncCook=true)`)
+- ✅ `UPlayerPredictionComponent` — velocity/trajectory + buffer zones
+- ✅ `URegionStreamingManager` — world subsystem: fetch/spawn/stitch/unload
+- ✅ `UDynamicWorldStreamingSettings` + `SETUP.md` build instructions
+- ⬜ **Compile & validate in-engine** (needs a UE 5.5 install)
+- ⬜ Runtime LOD pyramid (level>0 sampling is wired in the grid; mesh LOD TODO)
+- ⬜ World Partition runtime-hash injection (currently a custom streaming layer)
 
 ## Phase 3 — Integration
 - ⬜ Example project + example map setup guide

@@ -1,3 +1,42 @@
+# worldgen — Dynamic World Streaming
+
+**Goal:** an Unreal Engine avatar walks in any direction, forever, across the
+**real Earth**, and terrain materialises seamlessly ahead of them — no loading
+screens, no visible seams, generated on the fly from real DEM data.
+
+This repo has two halves that meet at one strict contract:
+
+1. **Python terrain service** (`terrain_service/`) — turns real-world DEM data
+   into a deterministic, seamlessly-tileable grid of heightmaps, served over
+   HTTP. Fully built and tested.
+2. **Unreal C++ plugin** (`unreal/DynamicWorldStreaming/`) — predictively
+   streams those tiles into a seamless world at runtime
+   (`UDynamicMeshComponent` tiles, stitching, LOD, async collision). Written to
+   UE 5.5 APIs; compiled in-engine by you.
+
+**Start here:**
+- `docs/ARCHITECTURE.md` — the master blueprint.
+- `docs/CONTRACT.md` — the WorldGrid + data contract both halves implement.
+- `docs/ROADMAP.md` — phased status.
+- `unreal/DynamicWorldStreaming/SETUP.md` — how to run it end to end.
+
+**Quick start (Python service, no API key needed):**
+
+```bash
+pip install -r requirements-service.txt
+python -m terrain_service.cli init --project-id demo \
+    --lat 39.7392 --lon -104.9903 --provider synthetic -o demo.json
+python -m terrain_service.cli serve -c demo.json --port 8000
+# then point the Unreal plugin at http://127.0.0.1:8000
+```
+
+Run the test suite: `python -m pytest tests_service/`.
+
+---
+
+> The section below documents the **original single-shot importer tool**, which
+> remains available and is the proof-of-concept the streaming service grew from.
+
 # Real-World Terrain to Unreal Engine Importer
 
 ## 1. Introduction
