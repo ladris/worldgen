@@ -48,8 +48,14 @@ class TilePipeline:
         os.makedirs(work_dir, exist_ok=True)
 
     def generate(self, tile: TileIndex, out_dir: str,
-                 write_png: bool = True) -> TileArtifacts:
-        """Generate and write all artifacts for ``tile`` into ``out_dir``."""
+                 write_png: bool = True,
+                 base_name: str | None = None) -> TileArtifacts:
+        """Generate and write all artifacts for ``tile`` into ``out_dir``.
+
+        ``base_name`` overrides the output filename stem (the cache uses the
+        tile's ``y`` index within a per-``x`` directory); defaults to
+        ``<level>_<x>_<y>``.
+        """
         os.makedirs(out_dir, exist_ok=True)
 
         # 1. Sample elevations on the tile's exact grid (metres, NaN = NoData).
@@ -70,7 +76,7 @@ class TilePipeline:
                               self.config.elevation_max_m)
 
         # 4. Write heightmap (.r16, little-endian, row-major, north at top).
-        base = f"{tile.level}_{tile.x}_{tile.y}"
+        base = base_name or f"{tile.level}_{tile.x}_{tile.y}"
         r16_path = os.path.join(out_dir, base + ".r16")
         u16_le = u16.astype("<u2", copy=False)
         u16_le.tofile(r16_path)
