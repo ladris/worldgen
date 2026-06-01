@@ -1,0 +1,24 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0.0",
+  "FriendlyName": "Dynamic World Streaming",
+  "Description": "Seamless, predictive streaming of real-world terrain tiles served by the worldgen Python terrain service. Generates UDynamicMeshComponent tiles at runtime, stitches them, LODs them, and integrates with World Partition.",
+  "Category": "World Generation",
+  "CreatedBy": "worldgen",
+  "CanContainContent": false,
+  "IsBetaVersion": true,
+  "Installed": false,
+  "EngineVersion": "5.5.0",
+  "Modules": [
+    {
+      "Name": "DynamicWorldStreaming",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ],
+  "Plugins": [
+    { "Name": "GeometryScripting", "Enabled": true },
+    { "Name": "ModelingToolsEditorMode", "Enabled": true, "Optional": true }
+  ]
+}
