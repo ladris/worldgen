@@ -1,0 +1,17 @@
+# Dynamic World Streaming — terrain service dependencies.
+# (Superset of the original importer's needs; see requirements.txt for the
+#  legacy CLI tool.)
+
+numpy>=1.20.0
+pyproj>=3.0.0
+rasterio>=1.2.0
+Pillow>=8.0.0
+requests>=2.25.0
+
+# HTTP service
+fastapi>=0.100.0
+uvicorn>=0.20.0
+
+# Test
+pytest>=7.0.0
+httpx>=0.24.0

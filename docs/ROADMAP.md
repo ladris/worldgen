@@ -7,16 +7,16 @@ Legend: ✅ done · 🟡 in progress · ⬜ todo · 🧪 has tests
 - ✅ `docs/CONTRACT.md` — Python↔Unreal contract (WorldGrid, encoding, formats, API)
 - ✅ `docs/ROADMAP.md`
 
-## Phase 1 — Python Terrain Service (fully runnable + tested)
-- 🟡 `terrain_service/config.py` — project/grid config + derived constants
-- 🟡 `terrain_service/tile_grid.py` — **WorldGrid**: deterministic tile↔Earth math 🧪
-- ⬜ `terrain_service/elevation.py` — absolute uint16 encode/decode 🧪
-- ⬜ `terrain_service/providers/` — pluggable DEM sources (OpenTopography first)
-- ⬜ `terrain_service/pipeline.py` — fetch→reproject→resample→encode→manifest 🧪
-- ⬜ `terrain_service/cache.py` — on-disk tile cache + dedup + async prestage
-- ⬜ `terrain_service/service.py` — FastAPI app implementing the HTTP contract 🧪
-- ⬜ `terrain_service/cli.py` — generate/prestage/serve commands
-- ⬜ CI: GitHub Actions running the test suite
+## Phase 1 — Python Terrain Service (fully runnable + tested) ✅
+- ✅ `terrain_service/config.py` — project/grid config + derived constants
+- ✅ `terrain_service/tile_grid.py` — **WorldGrid**: deterministic tile↔Earth math 🧪
+- ✅ `terrain_service/elevation.py` — absolute uint16 encode/decode 🧪
+- ✅ `terrain_service/providers/` — pluggable DEM sources (synthetic + OpenTopography) 🧪
+- ✅ `terrain_service/pipeline.py` — fetch→reproject→resample→encode→manifest 🧪
+- ✅ `terrain_service/cache.py` — on-disk tile cache + dedup + prestage
+- ✅ `terrain_service/service.py` — FastAPI app implementing the HTTP contract 🧪
+- ✅ `terrain_service/cli.py` — init/generate/serve commands
+- ✅ CI: GitHub Actions running the test suite (30 tests, 3 Python versions)
 
 ## Phase 2 — Unreal C++ Plugin `DynamicWorldStreaming`
 - ⬜ Plugin scaffold: `.uplugin`, `Build.cs`, module bootstrap
