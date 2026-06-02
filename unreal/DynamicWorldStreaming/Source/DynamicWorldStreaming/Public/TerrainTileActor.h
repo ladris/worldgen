@@ -36,6 +36,13 @@ public:
 	/** Cooks collision asynchronously once the mesh is present. */
 	void EnableCollisionAsync();
 
+	/** Immediately deform this tile's mesh under a brush, for instant VR
+	 *  feedback. The authoritative result is reconciled on the next stream-in
+	 *  from the service. BrushCenterWorldCm is in Unreal world space.
+	 *  Returns true if any vertex was affected. */
+	bool ApplyBrushLocal(const FVector& BrushCenterWorldCm, float RadiusM,
+						 EBrushType Type, float StrengthM, float TargetHeightM);
+
 	UPROPERTY(VisibleAnywhere, Category = "WorldStreaming")
 	TObjectPtr<UDynamicMeshComponent> MeshComponent;
 

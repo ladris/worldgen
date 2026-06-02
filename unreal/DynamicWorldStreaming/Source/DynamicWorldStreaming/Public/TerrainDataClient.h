@@ -39,6 +39,14 @@ public:
 	/** GET manifest then heightmap.r16 for a tile; callback once both arrive. */
 	void FetchTile(const FTileKey& Tile, FOnTileFetched OnComplete);
 
+	/** POST a surface edit to the service (authoritative persistence). Brush
+	 *  centre is in Unreal world cm; Strength/Target in metres. */
+	void PostEdit(EBrushType Type, const FVector& CenterWorldCm, float RadiusM,
+				  float StrengthM, float TargetHeightM);
+
+	/** POST /edit/undo. OnDone fires (game thread) when the server responds. */
+	void PostUndo(FSimpleDelegate OnDone);
+
 private:
 	FString BaseUrl;
 

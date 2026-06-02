@@ -114,6 +114,15 @@ struct FTileManifest
 	bool bValid = false;
 };
 
+/** Surface sculpt brush type (mirrors the service edit op types). */
+UENUM(BlueprintType)
+enum class EBrushType : uint8
+{
+	RaiseLower,   // add/subtract height (Strength: +up / -down)
+	Flatten,      // move toward TargetHeight
+	Smooth        // local averaging
+};
+
 /** Lifecycle state of a streamed tile. */
 UENUM(BlueprintType)
 enum class ETileState : uint8

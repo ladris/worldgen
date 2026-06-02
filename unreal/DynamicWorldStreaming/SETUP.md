@@ -60,6 +60,32 @@ config, then each update:
 
 The avatar can now walk indefinitely; terrain materialises ahead seamlessly.
 
+## 6. Sculpting the world (editable terrain)
+
+The world is persistently editable. Add a **TerrainSculptComponent** to your
+pawn or (for VR) to a motion controller, set the brush (`BrushType`, `RadiusM`,
+`StrengthM`, `TargetHeightM`), and drive it from input:
+
+- **VR**: on the trigger, call `SculptTrace(ControllerLocation, ControllerForward)`.
+  It line-traces to the terrain and sculpts at the hit.
+- **Desktop test**: call `SculptTrace(CameraLocation, CameraForward)` from a key.
+- **Direct**: `SculptAtLocation(WorldLocationCm)` (e.g. the hand position).
+- **Undo**: `UndoLastEdit()`.
+
+What happens: the brush deforms all loaded tiles immediately for instant
+feedback, and the authoritative edit is POSTed to the service, which composites
+it into the affected tiles. Walk away and back — your edits persist, because the
+normal tile stream-in now serves edited terrain (see `docs/CONTRACT.md` §7).
+
+## 7. VR bring-up (OpenXR)
+
+1. Enable the **OpenXR** plugin; set up a VR pawn with `MotionControllerComponent`s.
+2. Add `TerrainSculptComponent` to each controller you want to sculpt with.
+3. Mind the perf budget (90fps): keep `LoadRadius` modest, ensure async mesh
+   build/collision are on (they are by default), and prefer the LOD pyramid
+   (roadmap) for distant tiles. The `UDynamicMeshComponent` Lumen path (UE 5.5)
+   is recommended for lighting.
+
 ## How seams are prevented
 
 - **Geometry**: neighbouring tiles share identical edge sample positions
@@ -90,7 +116,8 @@ The avatar can now walk indefinitely; terrain materialises ahead seamlessly.
 | `TerrainTileActor` | heightmap → `UDynamicMeshComponent` on a worker thread |
 | `TileStitcher` | shared-edge normal averaging |
 | `PlayerPredictionComponent` | velocity/buffer-zone tile prediction |
-| `RegionStreamingManager` | the orchestrator (world subsystem) |
+| `RegionStreamingManager` | the orchestrator (world subsystem); also `ApplySculpt`/`UndoLastEdit` |
+| `TerrainSculptComponent` | VR/interaction hook for editing terrain |
 | `DynamicWorldStreamingSettings` | Project Settings config |
 
 See `docs/CONTRACT.md` for the exact data contract both halves implement.

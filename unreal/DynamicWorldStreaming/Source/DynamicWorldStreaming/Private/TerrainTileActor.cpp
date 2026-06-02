@@ -136,6 +136,72 @@ void ATerrainTileActor::BuildFromHeightmap(const FTileHeightmap& Heightmap,
 	}
 }
 
+bool ATerrainTileActor::ApplyBrushLocal(const FVector& BrushCenterWorldCm,
+	float RadiusM, EBrushType Type, float StrengthM, float TargetHeightM)
+{
+	if (!MeshComponent || State != ETileState::Active)
+	{
+		return false;
+	}
+	UDynamicMesh* Dyn = MeshComponent->GetDynamicMesh();
+	if (!Dyn)
+	{
+		return false;
+	}
+
+	const FVector ActorLoc = GetActorLocation();
+	// Brush centre in the actor's local space (XY only for the falloff).
+	const FVector2D CenterLocal(BrushCenterWorldCm.X - ActorLoc.X,
+								BrushCenterWorldCm.Y - ActorLoc.Y);
+	const double RadiusCm = RadiusM * 100.0;
+	const double StrengthCm = StrengthM * 100.0;
+	const double TargetLocalZ = (TargetHeightM * 100.0) - ActorLoc.Z;
+
+	bool bAny = false;
+	Dyn->EditMesh([&](FDynamicMesh3& Mesh)
+	{
+		for (int32 Vid : Mesh.VertexIndicesItr())
+		{
+			const FVector3d P = Mesh.GetVertex(Vid);
+			const double D = FVector2D::Distance(CenterLocal, FVector2D(P.X, P.Y));
+			if (D > RadiusCm)
+			{
+				continue;
+			}
+			const double T = D / RadiusCm;
+			const double W = FMath::Square(1.0 - T * T); // smoothstep-like bell
+			FVector3d NewP = P;
+			switch (Type)
+			{
+			case EBrushType::RaiseLower:
+				NewP.Z = P.Z + StrengthCm * W;
+				break;
+			case EBrushType::Flatten:
+				NewP.Z = FMath::Lerp(P.Z, TargetLocalZ, W);
+				break;
+			case EBrushType::Smooth:
+				// Local feedback approximation: ease toward the brush-centre
+				// height. The service performs true neighbourhood smoothing.
+				NewP.Z = FMath::Lerp(P.Z, P.Z, W); // no-op locally; reconcile on reload
+				break;
+			}
+			Mesh.SetVertex(Vid, NewP);
+			bAny = true;
+		}
+		if (bAny)
+		{
+			FMeshNormals::QuickComputeVertexNormals(Mesh);
+		}
+	});
+
+	if (bAny)
+	{
+		MeshComponent->NotifyMeshUpdated();
+		EnableCollisionAsync();
+	}
+	return bAny;
+}
+
 void ATerrainTileActor::EnableCollisionAsync()
 {
 	if (!MeshComponent)

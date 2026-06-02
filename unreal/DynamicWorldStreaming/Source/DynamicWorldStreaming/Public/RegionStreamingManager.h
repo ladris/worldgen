@@ -47,6 +47,22 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "WorldStreaming")
 	int32 GetActiveTileCount() const { return ActiveTiles.Num(); }
 
+	/** Sculpt the terrain: deform all loaded tiles under the brush immediately
+	 *  (VR feedback) and POST the authoritative edit to the service so it
+	 *  persists and reconciles on stream-in. Centre is in Unreal world cm. */
+	UFUNCTION(BlueprintCallable, Category = "WorldStreaming")
+	void ApplySculpt(const FVector& WorldLocationCm, EBrushType Type,
+					 float RadiusM, float StrengthM, float TargetHeightM);
+
+	/** Undo the most recent edit on the server, then reload loaded tiles so the
+	 *  reverted terrain streams back in. */
+	UFUNCTION(BlueprintCallable, Category = "WorldStreaming")
+	void UndoLastEdit();
+
+	/** Force a reload of all currently-loaded tiles (e.g. after a server-side
+	 *  change). Tiles are destroyed and re-requested on the next update. */
+	void ReloadActiveTiles();
+
 private:
 	UPROPERTY()
 	TObjectPtr<UTerrainDataClient> Client;

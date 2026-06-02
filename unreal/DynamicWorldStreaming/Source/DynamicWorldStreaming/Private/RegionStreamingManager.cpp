@@ -147,6 +147,74 @@ bool URegionStreamingManager::GetPlayerTile(FTileKey& OutTile) const
 	return false;
 }
 
+void URegionStreamingManager::ApplySculpt(const FVector& WorldLocationCm,
+	EBrushType Type, float RadiusM, float StrengthM, float TargetHeightM)
+{
+	if (!bConfigReady)
+	{
+		return;
+	}
+
+	// 1. Persist authoritatively (the service composites and reconciles).
+	if (Client)
+	{
+		Client->PostEdit(Type, WorldLocationCm, RadiusM, StrengthM, TargetHeightM);
+	}
+
+	// 2. Immediate local feedback on every loaded tile the brush overlaps.
+	const double RadiusCm = RadiusM * 100.0;
+	const double TileCm = Grid.TileSizeCm();
+	for (auto& Pair : ActiveTiles)
+	{
+		ATerrainTileActor* Actor = Pair.Value;
+		if (!IsValid(Actor))
+		{
+			continue;
+		}
+		// Circle vs tile AABB (XY) broad-phase.
+		const FVector Corner = Grid.TileToWorldLocationCm(Pair.Key);
+		const double ClampedX = FMath::Clamp(WorldLocationCm.X, Corner.X, Corner.X + TileCm);
+		const double ClampedY = FMath::Clamp(WorldLocationCm.Y, Corner.Y, Corner.Y + TileCm);
+		const double DX = WorldLocationCm.X - ClampedX;
+		const double DY = WorldLocationCm.Y - ClampedY;
+		if (DX * DX + DY * DY <= RadiusCm * RadiusCm)
+		{
+			Actor->ApplyBrushLocal(WorldLocationCm, RadiusM, Type, StrengthM, TargetHeightM);
+		}
+	}
+}
+
+void URegionStreamingManager::UndoLastEdit()
+{
+	if (!Client)
+	{
+		return;
+	}
+	TWeakObjectPtr<URegionStreamingManager> WeakThis(this);
+	Client->PostUndo(FSimpleDelegate::CreateLambda([WeakThis]()
+	{
+		if (URegionStreamingManager* Self = WeakThis.Get())
+		{
+			Self->ReloadActiveTiles();
+		}
+	}));
+}
+
+void URegionStreamingManager::ReloadActiveTiles()
+{
+	// Destroy loaded tiles; the next UpdateStreaming() re-requests them, pulling
+	// the freshly composited terrain from the service.
+	for (auto& Pair : ActiveTiles)
+	{
+		if (IsValid(Pair.Value))
+		{
+			Pair.Value->Destroy();
+		}
+	}
+	ActiveTiles.Empty();
+	TimeSinceUpdate = UpdateInterval; // trigger a refresh on the next tick
+}
+
 void URegionStreamingManager::UpdateStreaming()
 {
 	// Desired set: from the predictor if present, else a plain radius block.

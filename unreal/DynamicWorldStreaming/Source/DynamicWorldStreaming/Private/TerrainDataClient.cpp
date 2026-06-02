@@ -161,6 +161,60 @@ bool UTerrainDataClient::ParseManifest(const FString& Json, FTileManifest& Out)
 	return Out.bValid;
 }
 
+void UTerrainDataClient::PostEdit(EBrushType Type, const FVector& CenterWorldCm,
+	float RadiusM, float StrengthM, float TargetHeightM)
+{
+	const TCHAR* TypeStr =
+		Type == EBrushType::RaiseLower ? TEXT("raise_lower") :
+		Type == EBrushType::Flatten    ? TEXT("flatten") : TEXT("smooth");
+
+	const TSharedRef<FJsonObject> Body = MakeShared<FJsonObject>();
+	Body->SetStringField(TEXT("type"), TypeStr);
+	Body->SetNumberField(TEXT("center_x_cm"), CenterWorldCm.X);
+	Body->SetNumberField(TEXT("center_y_cm"), CenterWorldCm.Y);
+	Body->SetNumberField(TEXT("radius_m"), RadiusM);
+	Body->SetNumberField(TEXT("strength_m"), StrengthM);
+	Body->SetNumberField(TEXT("target_height_m"), TargetHeightM);
+	Body->SetStringField(TEXT("falloff"), TEXT("smooth"));
+	Body->SetNumberField(TEXT("iterations"), 1);
+
+	FString Payload;
+	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Payload);
+	FJsonSerializer::Serialize(Body, Writer);
+
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Req = FHttpModule::Get().CreateRequest();
+	Req->SetVerb(TEXT("POST"));
+	Req->SetURL(BaseUrl + TEXT("/edit"));
+	Req->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+	Req->SetContentAsString(Payload);
+	Req->OnProcessRequestComplete().BindLambda(
+		[](FHttpRequestPtr, FHttpResponsePtr Response, bool bOk)
+		{
+			if (!bOk || !Response.IsValid() || Response->GetResponseCode() != 200)
+			{
+				UE_LOG(LogDynamicWorldStreaming, Warning,
+					TEXT("PostEdit failed (code %d)."),
+					Response.IsValid() ? Response->GetResponseCode() : -1);
+			}
+		});
+	Req->ProcessRequest();
+}
+
+void UTerrainDataClient::PostUndo(FSimpleDelegate OnDone)
+{
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Req = FHttpModule::Get().CreateRequest();
+	Req->SetVerb(TEXT("POST"));
+	Req->SetURL(BaseUrl + TEXT("/edit/undo"));
+	Req->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+	Req->SetContentAsString(TEXT("{}"));
+	Req->OnProcessRequestComplete().BindLambda(
+		[OnDone](FHttpRequestPtr, FHttpResponsePtr Response, bool bOk)
+		{
+			OnDone.ExecuteIfBound();
+		});
+	Req->ProcessRequest();
+}
+
 void UTerrainDataClient::FetchHeightmap(const FTileManifest& Manifest, FOnTileFetched OnComplete)
 {
 	// Prefer the manifest's heightmap_url; fall back to the conventional path.
