@@ -27,3 +27,9 @@ build/
 # OS specific
 .DS_Store
 Thumbs.db
+
+# Terrain service generated output (tile caches, work dirs, base snapshots)
+.worldgen_cache/
+.worldgen_work/
+# Project configs created locally by `terrain_service.cli init` / tools.demo
+/demo.json
