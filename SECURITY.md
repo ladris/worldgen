@@ -45,16 +45,34 @@ single-user threat model), and vulnerabilities in third-party dependencies
 
 If you run the service beyond a single local machine:
 
-- Bind to `127.0.0.1` (the default) or put it behind an authenticating proxy.
-- Add request rate limiting and request-size limits at the proxy.
+- Bind to `127.0.0.1` (the default). The CLI and demo print a warning if you
+  bind elsewhere.
+- **Set `WORLDGEN_API_TOKEN`** to require `Authorization: Bearer <token>` on all
+  data endpoints (everything except `/health`). When unset, the service is open
+  and logs a warning at startup.
+- Put it behind a reverse proxy with TLS, request rate limiting, and a
+  request-body-size limit.
 - Keep your `OPENTOPOGRAPHY_API_KEY` in the environment, never in committed
   files (`config.json`, `demo.json`, and `.worldgen_cache/` are gitignored).
 - Treat generated tile caches as untrusted if the service is shared.
 
-## Good security practices in the codebase
+## Built-in protections
 
-- The core is deterministic and free of `eval`/`exec`/`pickle`; JSON and NumPy
-  `.npy` are loaded without pickle (`allow_pickle=False` by default).
-- Input validation and resource bounds on request parameters are enforced in the
-  service layer (see `terrain_service/service.py`); please preserve and extend
-  these when adding endpoints. See [CONTRIBUTING](CONTRIBUTING.md).
+- **Resource bounds** (`terrain_service/limits.py`), enforced at the HTTP
+  boundary *and* defensively in the core:
+  - tile `level` is constrained to `[0, 24]` (negative levels would upsample the
+    sample grid into a huge allocation) and tile indices are bounded;
+  - edit `radius_m`, `iterations`, and the resulting affected-tile count /
+    mosaic size are capped so a single edit cannot exhaust memory or CPU;
+  - `/prestage` caps the number of tiles per request.
+- **Optional bearer-token auth** via `WORLDGEN_API_TOKEN` (see above).
+- **Clean error mapping**: expected failures map to 4xx/5xx with non-revealing
+  messages; FastAPI does not run in debug mode, so stack traces are not returned
+  to clients.
+- **No unsafe deserialization**: no `eval`/`exec`/`pickle`; JSON and NumPy
+  `.npy` are loaded with `allow_pickle=False`.
+- **Secret hygiene**: the OpenTopography API key is redacted from upstream error
+  text and is not logged.
+
+When adding endpoints or parameters, **preserve and extend these bounds** — see
+[CONTRIBUTING](CONTRIBUTING.md).

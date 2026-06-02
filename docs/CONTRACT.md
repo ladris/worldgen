@@ -186,9 +186,29 @@ Base URL e.g. `http://127.0.0.1:8000`.
 | `GET` | `/tile/{level}/{x}/{y}` | multipart: manifest + heightmap (one round-trip) |
 | `POST` | `/prestage` | body `{tiles:[{level,x,y},…]}` → warms cache async, returns job status |
 
-Errors use standard HTTP codes; body `{"error": "...", "tile": {...}}`.
+Errors use standard HTTP codes; body `{"detail": "..."}`. Expected failures map
+to specific codes: `422` invalid/out-of-range parameters, `400` invalid edit,
+`401` missing/wrong auth, `404` not found, `413` request too large, `502`
+upstream DEM provider error.
 
 `level` is reserved for future LOD/zoom pyramids; `level 0` = native resolution.
+
+### 5.1 Authentication
+
+If the server has `WORLDGEN_API_TOKEN` set, every endpoint except `/health`
+requires `Authorization: Bearer <token>`; otherwise the service is open
+(intended for local single-user use only — see `SECURITY.md`). The Unreal client
+should send the header when the operator has configured a token.
+
+### 5.2 Limits
+
+The server enforces resource bounds (`terrain_service/limits.py`); clients must
+stay within them or receive `4xx`:
+
+- tile `level` ∈ `[0, 24]`; tile indices bounded to ±10,000,000;
+- edit `radius_m` ≤ 100,000 and bounded further by an affected-tile / mosaic-size
+  cap; `iterations` ∈ `[1, 64]`;
+- `/prestage` ≤ 1024 tiles per request.
 
 ---
 

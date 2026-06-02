@@ -86,6 +86,11 @@ Looking for somewhere to start? See
 - Pure, deterministic core (grid, encoding, edit ops) — no hidden global state;
   same inputs → same outputs. This is what makes caching and seamlessness work.
 - Prefer NumPy vectorised ops over Python loops in the hot path.
+- **Respect the resource limits.** Any request parameter that drives an
+  allocation, a loop, generation work, or an outbound call must be bounded —
+  add the bound to `terrain_service/limits.py` and enforce it at the HTTP
+  boundary *and* defensively in the core. Never remove an existing bound. See
+  `SECURITY.md` and the tests in `tests_service/test_security.py`.
 
 **Unreal C++**
 - Match Unreal conventions (`UCLASS`/`USTRUCT`/`UPROPERTY`, `F`/`U`/`A`

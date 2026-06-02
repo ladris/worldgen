@@ -75,6 +75,12 @@ def cmd_serve(args: argparse.Namespace) -> int:
         print("uvicorn is required to serve: pip install uvicorn", file=sys.stderr)
         return 1
     app = create_app(cache)
+    if args.host not in ("127.0.0.1", "localhost", "::1"):
+        print(
+            f"WARNING: binding to {args.host} exposes the service beyond this "
+            "machine. It has no built-in auth unless WORLDGEN_API_TOKEN is set; "
+            "put it behind an authenticating, rate-limiting proxy (see SECURITY.md)."
+        )
     print(f"Serving project '{cfg.project_id}' on http://{args.host}:{args.port}")
     uvicorn.run(app, host=args.host, port=args.port)
     return 0

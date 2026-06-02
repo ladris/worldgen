@@ -131,6 +131,11 @@ class WorldGrid:
         west edge. Edge samples land exactly on the shared grid lines, which is
         what makes neighbouring tiles weld.
         """
+        # Defence in depth: a negative/huge level would upsample the grid into a
+        # huge allocation. The service rejects bad levels at the boundary; guard
+        # here too so the library is safe under direct use.
+        from .limits import validate_tile_level
+        validate_tile_level(tile.level)
         b = self.tile_bounds_projected(tile)
         n = self._samples_per_edge(tile.level)
         mpp = self._level_mpp(tile.level)

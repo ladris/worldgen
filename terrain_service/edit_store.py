@@ -108,7 +108,8 @@ class EditStore:
         """Pristine base heights (metres) for a tile, cached on disk as .npy."""
         path = os.path.join(self.base_dir, f"{tile.level}_{tile.x}_{tile.y}.npy")
         if os.path.exists(path):
-            return np.load(path)
+            # allow_pickle=False (the default) — never deserialize pickled objects.
+            return np.load(path, allow_pickle=False)
         elev = self.provider.sample_grid(self.grid, tile, self.work_dir)
         elev = fill_nodata(elev)
         np.save(path, elev.astype(np.float32))
@@ -178,6 +179,24 @@ class EditStore:
             if not tiles:
                 return {"affected": [], "op_id": op.op_id}
             x0, x1, y0, y1 = self._extent(tiles)
+
+            # Resource guard: bound the affected-tile count and the mosaic
+            # dimensions so a large radius / fine resolution cannot allocate an
+            # enormous array (defence in depth behind the HTTP-layer limits).
+            from .limits import (
+                MAX_EDIT_AFFECTED_TILES, MAX_EDIT_MOSAIC_SAMPLES_PER_SIDE,
+            )
+            if len(tiles) > MAX_EDIT_AFFECTED_TILES:
+                raise ValueError(
+                    f"edit affects {len(tiles)} tiles (max {MAX_EDIT_AFFECTED_TILES}); "
+                    "reduce radius_m."
+                )
+            mh, mw = self._mosaic_shape(x0, x1, y0, y1)
+            if max(mh, mw) > MAX_EDIT_MOSAIC_SAMPLES_PER_SIDE:
+                raise ValueError(
+                    f"edit mosaic {mw}x{mh} exceeds "
+                    f"{MAX_EDIT_MOSAIC_SAMPLES_PER_SIDE}; reduce radius_m."
+                )
 
             mosaic = self._assemble_base_mosaic(x0, x1, y0, y1)
             easting, northing = self._mosaic_coords(x0, x1, y0, y1)

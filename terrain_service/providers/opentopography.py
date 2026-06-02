@@ -56,9 +56,12 @@ class OpenTopographyProvider(DEMProvider):
         resp = requests.get(OPENTOPOGRAPHY_API_URL, params=params,
                             stream=True, timeout=self.timeout)
         if resp.status_code != 200:
-            raise OpenTopographyError(
-                f"HTTP {resp.status_code}: {resp.text[:300]}"
-            )
+            # Redact the API key before it can land in logs/exceptions, in case
+            # an upstream error body reflects the request.
+            body = resp.text[:300]
+            if self.api_key:
+                body = body.replace(self.api_key, "***REDACTED***")
+            raise OpenTopographyError(f"HTTP {resp.status_code}: {body}")
         os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
         with open(out_path, "wb") as f:
             for chunk in resp.iter_content(chunk_size=8192):

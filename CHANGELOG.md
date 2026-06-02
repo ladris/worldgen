@@ -53,6 +53,19 @@ persistently.
 - Docs: `ARCHITECTURE`, `CONTRACT` (v1.1), `ROADMAP`, `QUICKSTART`, `GLOSSARY`,
   plugin `SETUP`/`EXAMPLE`, `CONTRIBUTING`.
 
+### Security (hardening of the now network-exposed service)
+- **Resource bounds** (`terrain_service/limits.py`) enforced at the HTTP boundary
+  and defensively in the core: tile `level` constrained to `[0, 24]` (fixes an
+  unauthenticated memory-exhaustion DoS via negative `level`), bounded tile
+  indices, capped edit `radius_m`/`iterations`/affected-tile count/mosaic size,
+  and a `/prestage` tile-count cap.
+- **Optional bearer-token auth** via `WORLDGEN_API_TOKEN` (all data endpoints);
+  startup warns when running open, and binding beyond localhost warns.
+- **Clean error mapping** (4xx/5xx, non-revealing messages) instead of bare 500s.
+- **Secret hygiene**: OpenTopography API key redacted from upstream error text;
+  NumPy `.npy` loaded with `allow_pickle=False`.
+- Added `SECURITY.md` (threat model, private reporting, operator hardening).
+
 ### Design decisions
 - Origin-anchored **metric** grid (UTM), not Web Mercator — true 1:1 scale.
 - **Absolute** project-wide elevation encoding — constant world Z-scale.

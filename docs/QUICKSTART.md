@@ -75,6 +75,11 @@ You just validated streaming + editing + undo end to end over HTTP. 🎉
 While the service is up, open <http://127.0.0.1:8000/docs> for interactive API
 docs (FastAPI/Swagger). Try `GET /tile/0/0/0/manifest`.
 
+> 🔒 The demo binds to `127.0.0.1` and has **no auth**. Don't expose it on a
+> public interface. If you must, set `WORLDGEN_API_TOKEN` to require a bearer
+> token and front it with a rate-limiting proxy — see
+> [`SECURITY.md`](../SECURITY.md).
+
 ---
 
 ## Stage 3 — Generate and look at terrain (optional, ≈2 min)

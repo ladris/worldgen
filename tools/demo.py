@@ -44,6 +44,9 @@ def main(argv: list[str] | None = None) -> int:
     import uvicorn
 
     app = create_app(cache)
+    if args.host not in ("127.0.0.1", "localhost", "::1"):
+        print("WARNING: binding beyond localhost; the service has no built-in "
+              "auth unless WORLDGEN_API_TOKEN is set. See SECURITY.md.")
     print("=" * 64)
     print(f" Dynamic World Streaming — demo service")
     print(f"   project   : {cfg.project_id}  ({args.provider})")

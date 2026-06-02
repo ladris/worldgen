@@ -49,10 +49,19 @@ class EditOp:
     timestamp: float = field(default_factory=time.time)
 
     def __post_init__(self) -> None:
+        from .limits import MAX_EDIT_RADIUS_M, MAX_EDIT_ITERATIONS
         if self.type not in SURFACE_OPS:
             raise ValueError(f"Unknown edit op type: {self.type}")
-        if self.radius_m <= 0:
-            raise ValueError("radius_m must be > 0")
+        if not (0.0 < self.radius_m <= MAX_EDIT_RADIUS_M):
+            raise ValueError(
+                f"radius_m must be in (0, {MAX_EDIT_RADIUS_M}], got {self.radius_m}"
+            )
+        if self.falloff not in (FALLOFF_SMOOTH, FALLOFF_LINEAR, FALLOFF_CONSTANT):
+            raise ValueError(f"Unknown falloff: {self.falloff}")
+        if not (1 <= self.iterations <= MAX_EDIT_ITERATIONS):
+            raise ValueError(
+                f"iterations must be in [1, {MAX_EDIT_ITERATIONS}], got {self.iterations}"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
