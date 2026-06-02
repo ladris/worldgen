@@ -1,0 +1,59 @@
+name: Bug report
+description: Something isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug! Please run through the checklist below — it
+        makes bugs far faster to fix. New here? See
+        [docs/QUICKSTART.md](../blob/main/docs/QUICKSTART.md).
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the project?
+      options:
+        - Python terrain service (terrain_service/)
+        - Unreal plugin (unreal/DynamicWorldStreaming/)
+        - Tooling (tools/, tests)
+        - Documentation
+        - Legacy importer (main_controller.py)
+        - Not sure
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, including what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Exact commands / actions. The more precise, the better.
+      placeholder: |
+        1. python -m tools.demo --port 8000
+        2. python -m tools.contract_smoke --url http://127.0.0.1:8000
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: smoke
+    attributes:
+      label: Contract smoke output (service bugs)
+      description: For service issues, paste `python -m tools.contract_smoke` output.
+      render: shell
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python version, and (for engine issues) Unreal Engine version.
+      placeholder: |
+        OS: Windows 11 / Ubuntu 24.04 / macOS 14
+        Python: 3.11.x
+        Unreal Engine: 5.5.x (if applicable)
+    validations:
+      required: true

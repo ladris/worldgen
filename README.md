@@ -120,10 +120,12 @@ precision, VR tools, object placement, and volumetric terrain. Full breakdown:
 
 This is a one-of-a-kind project and contributions are welcome. Good first steps:
 get the service running ([QUICKSTART](docs/QUICKSTART.md)), then compile the UE
-plugin and report build fixes, or add a DEM provider / edit-op. The one rule
-that matters: the two halves share a contract — change it on both sides and bump
-`schema_version`. See **[CONTRIBUTING.md](CONTRIBUTING.md)** and the
-**[GLOSSARY](docs/GLOSSARY.md)**.
+plugin and report build fixes, or add a DEM provider / edit-op — see
+**[good first issues](docs/GOOD_FIRST_ISSUES.md)**. The one rule that matters:
+the two halves share a contract — change it on both sides and bump
+`schema_version`. Read **[CONTRIBUTING.md](CONTRIBUTING.md)**, the
+**[GLOSSARY](docs/GLOSSARY.md)**, and our
+**[Code of Conduct](CODE_OF_CONDUCT.md)**.
 
 ## Documentation
 
@@ -134,6 +136,8 @@ that matters: the two halves share a contract — change it on both sides and bu
 [Roadmap](docs/ROADMAP.md) ·
 [Glossary](docs/GLOSSARY.md) ·
 [Contributing](CONTRIBUTING.md) ·
+[Good first issues](docs/GOOD_FIRST_ISSUES.md) ·
+[Code of Conduct](CODE_OF_CONDUCT.md) ·
 [Changelog](CHANGELOG.md)
 
 ## Acknowledgements & data

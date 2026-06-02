@@ -1,0 +1,48 @@
+name: Feature request / proposal
+description: Suggest an idea or a piece of the roadmap
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea! For large or architectural changes, please check
+        [docs/ROADMAP.md](../blob/main/docs/ROADMAP.md) and open a Discussion
+        first so we can align before code is written.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What are you trying to do, and what's missing or painful today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like to happen?
+    validations:
+      required: true
+  - type: dropdown
+    id: roadmap
+    attributes:
+      label: Related roadmap phase (if any)
+      options:
+        - "Phase 1/3: terrain service / editing"
+        - "Phase 2: Unreal plugin"
+        - "Phase 4: enter anywhere + precision"
+        - "Phase 5: VR presence & tools"
+        - "Phase 6: build / add / remove objects"
+        - "Phase 7: volumetric terrain"
+        - "Tooling / docs / DX"
+        - "Not sure"
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you weighed, and why this one.
+  - type: checkboxes
+    id: contract
+    attributes:
+      label: Contract impact
+      options:
+        - label: This may change the Python↔Unreal contract (grid math, formats, encoding, or HTTP API) and would need both halves updated + a schema_version bump.

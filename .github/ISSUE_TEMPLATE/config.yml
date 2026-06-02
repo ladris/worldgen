@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Start here — Quickstart
+    url: https://github.com/ladris/worldgen/blob/main/docs/QUICKSTART.md
+    about: Get the terrain service running and test it in ~5 minutes before filing.
+  - name: Good first issues
+    url: https://github.com/ladris/worldgen/blob/main/docs/GOOD_FIRST_ISSUES.md
+    about: Curated starter tasks if you want to contribute.
+  - name: Contributing guide
+    url: https://github.com/ladris/worldgen/blob/main/CONTRIBUTING.md
+    about: Dev setup, the contract discipline, and conventions.

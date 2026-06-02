@@ -43,18 +43,40 @@ CI runs the suite on Python 3.10/3.11/3.12 (`.github/workflows/terrain-service-c
 For the Unreal side you need UE 5.5+; see
 [`unreal/DynamicWorldStreaming/SETUP.md`](unreal/DynamicWorldStreaming/SETUP.md).
 
+## Branching & PR conventions
+
+- **`main`** is the canonical, always-working core. Don't commit to it directly;
+  branch off it.
+- **Branch names** are typed by purpose:
+  - `feat/<short-name>` — a new feature
+  - `fix/<short-name>` — a bug fix
+  - `docs/<short-name>` — documentation only
+  - `refactor/<short-name>` / `chore/<short-name>` — internal / housekeeping
+  - `exp/<short-name>` — experiments / spikes
+- **Commits**: imperative mood, scoped where useful, e.g.
+  `feat(service): add Copernicus DEM provider`. Explain *why* in the body when
+  it isn't obvious.
+- **Pull requests**: open against `main`, fill in the PR template, keep them
+  small and focused. Draft early to get feedback before it's "done."
+- **Keep green**: `python -m pytest tests_service/ -q` must pass; CI runs it on
+  3.10/3.11/3.12.
+
 ## Workflow
 
-1. Branch from the active development branch.
-2. Make focused commits with clear messages (imperative mood: "add", "fix").
+1. `git switch main && git pull`, then `git switch -c feat/your-thing`.
+2. Make focused commits with clear messages.
 3. **Add or update tests** for any behaviour change on the Python side. The
    seam/persistence invariants are the project's crown jewels — protect them
    with tests.
 4. Keep docs in step (contract, roadmap, glossary as relevant).
-5. Open a PR describing *what* and *why*; link the roadmap item if there is one.
+5. Open a PR against `main` using the template; link the issue/roadmap item.
 
 There are no required approvals enforced yet (early project); favour small,
-reviewable PRs and explain trade-offs.
+reviewable PRs and explain trade-offs. Be kind — see
+[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+
+Looking for somewhere to start? See
+[`docs/GOOD_FIRST_ISSUES.md`](docs/GOOD_FIRST_ISSUES.md).
 
 ## Coding conventions
 
