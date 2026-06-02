@@ -37,6 +37,43 @@ Legend: ✅ done · 🟡 in progress · ⬜ todo · 🧪 has tests
 - ⬜ End-to-end "infinite walk" verification checklist
 - ⬜ Performance pass (async profiling, memory budget)
 
+## Ultimate goal: persistent, editable, VR digital twin of Earth
+
+Enter VR at any chosen coordinate at 1:1 scale and physically sculpt, build,
+add/remove, and modify anything — persistently.
+
+### Phase 3 — Editable terrain layer (surface) ✅ (service); UE written
+- ✅ `terrain_service/edits.py` — brush ops (raise/lower, flatten, smooth) 🧪
+- ✅ `terrain_service/edit_store.py` — authoritative op log + base cache;
+  seamless mosaic compositing; undo 🧪
+- ✅ cache `decode_heights`/`write_heights`; service `/edit`, `/edit/undo`,
+  tile edits 🧪
+- ✅ CONTRACT v1.1 (editable-terrain section)
+- ✅ UE: `ApplyBrushLocal`, `PostEdit/PostUndo`, `ApplySculpt`, `UndoLastEdit`,
+  `UTerrainSculptComponent` (VR hook) — written; compile in-engine
+- ⬜ Smooth-across-region-boundary refinement (minor; documented)
+- ⬜ Material/biome paint layer (texture, not height)
+
+### Phase 4 — Enter anywhere + large-world precision ⬜
+- ⬜ Re-anchorable project origin / drop at any lat/lon at runtime
+- ⬜ UE Large World Coordinates + World Partition origin rebasing for precision
+  far from origin
+- ⬜ "Teleport to coordinate" flow (and a place-search → coordinate helper)
+
+### Phase 5 — VR presence & tools ⬜
+- ⬜ OpenXR pawn, motion controllers, hand-driven brush UI/gizmos
+- ⬜ 90fps perf pass: LOD pyramid, async budgeting, Lumen settings
+- ⬜ Brush preview decal, strength/radius gestures
+
+### Phase 6 — Build / add / remove objects ⬜
+- ⬜ Place/remove props & meshes, persisted to the edit store (object layer)
+- ⬜ Object persistence keyed to world coordinates; reload on stream-in
+
+### Phase 7 — Volumetric terrain (caves/overhangs) ⬜
+- ⬜ Voxel/SDF region type as a second layer alongside heightfield
+- ⬜ Dual-contouring/marching-cubes meshing; add/remove solid matter
+- ⬜ Volumetric edit ops extending the same op-log transport
+
 ## Known design decisions (locked unless revisited)
 - Metric origin-anchored grid (UTM of origin), **not** Web Mercator — for true
   1:1 scale.
