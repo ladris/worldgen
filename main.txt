@@ -1,0 +1,30 @@
+# Dockerfile
+# Use Python 3.11 slim image for smaller footprint
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies for potential geospatial libraries
+RUN apt-get update && apt-get install -y \
+    gdal-bin \
+    libgdal-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements file
+COPY requirements-service.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements-service.txt
+
+# Copy application code
+COPY . .
+
+# Create cache directory
+RUN mkdir -p /app/cache
+
+# Expose the service port
+EXPOSE 8000
+
+# Default command - uses synthetic provider (no API key needed)
+CMD ["python", "-m", "tools.demo"]
