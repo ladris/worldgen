@@ -64,7 +64,7 @@ def transform_bbox_to_crs(bbox: tuple[float, float, float, float],
         logger.info(f"Transformed bbox from {source_crs.name} ({source_crs_str}) to {target_crs.name} ({target_crs_str}): "
                     f"Original: ({min_x_src:.6f}, {min_y_src:.6f}, {max_x_src:.6f}, {max_y_src:.6f}) -> "
                     f"Transformed: ({final_min_x:.2f}, {final_min_y:.2f}, {final_max_x:.2f}, {final_max_y:.2f})")
-        return (final_min_x, final_min_y, final_max_x, final_max_y)
+        return final_min_x, final_min_y, final_max_x, final_max_y
     except CRSError as e:
         logger.error(f"CRS error during transformation from '{source_crs_str}' to '{target_crs_str}': {e}. Input bbox: {bbox}")
         return None
