@@ -108,3 +108,52 @@ class TileCache:
                    "derived": self.config.derived()}
         with open(path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
+
+    # -- edit support: decode / re-encode a tile's height field -----------
+
+    def decode_heights(self, tile: TileIndex) -> "np.ndarray":
+        """Return the tile's current heights in metres (generating if needed).
+
+        Decodes the stored absolute-encoded .r16. This is the composited state:
+        base terrain plus any edits already baked in.
+        """
+        import numpy as np
+        from .elevation import decode_absolute
+        self.ensure(tile)
+        n = self.config.samples_per_edge
+        u16 = np.fromfile(self.paths(tile)["r16"], dtype="<u2").reshape(n, n)
+        return decode_absolute(u16, self.config.elevation_min_m,
+                               self.config.elevation_max_m)
+
+    def write_heights(self, tile: TileIndex, heights_m: "np.ndarray") -> dict:
+        """Re-encode and store a modified height field for a tile, refreshing the
+        .r16, .png preview, and manifest (tile min/max + content hash).
+        Returns the new manifest.
+        """
+        import numpy as np
+        import hashlib
+        from .elevation import encode_absolute
+        from .manifest import build_manifest
+
+        u16 = encode_absolute(heights_m, self.config.elevation_min_m,
+                              self.config.elevation_max_m)
+        p = self.paths(tile)
+        os.makedirs(self._tile_dir(tile), exist_ok=True)
+        u16_le = u16.astype("<u2", copy=False)
+        u16_le.tofile(p["r16"])
+        content_hash = "sha256:" + hashlib.sha256(u16_le.tobytes()).hexdigest()
+
+        if self.write_png:
+            try:
+                from PIL import Image
+                Image.fromarray(u16).save(p["png"])
+            except ImportError:
+                pass
+
+        manifest = build_manifest(
+            self.config, self.pipeline.grid, tile,
+            float(np.min(heights_m)), float(np.max(heights_m)), content_hash,
+        )
+        with open(p["json"], "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2)
+        return manifest

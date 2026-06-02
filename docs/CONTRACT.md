@@ -1,4 +1,7 @@
-# The Python ↔ Unreal Contract (v1.0)
+# The Python ↔ Unreal Contract (v1.1)
+
+> v1.1 adds the editable-terrain layer (§7). v1.0 streaming is unchanged.
+
 
 This is the **single source of truth** shared by the Python terrain service and
 the Unreal C++ plugin. Both sides implement the same WorldGrid math and the same
@@ -188,6 +191,46 @@ Errors use standard HTTP codes; body `{"error": "...", "tile": {...}}`.
 `level` is reserved for future LOD/zoom pyramids; `level 0` = native resolution.
 
 ---
+
+## 7. Editable terrain layer (v1.1)
+
+The world is **persistently editable**. The op log (server-side) is the source
+of truth; tiles served by `/tile/...` are the composited result of base terrain
++ all edits. Persistence is therefore automatic: re-fetching a tile yields the
+edited terrain. Edits crossing tile boundaries are applied on a shared mosaic so
+shared edges stay byte-identical (no seams).
+
+### 7.1 Edit operations
+
+A brush stroke, expressed in **Unreal world centimetres** (what the UE client
+has). The service converts to projected metres for evaluation.
+
+| Field | Meaning |
+|-------|---------|
+| `type` | `raise_lower` \| `flatten` \| `smooth` |
+| `center_x_cm`, `center_y_cm` | brush centre, Unreal world cm |
+| `radius_m` | brush radius, metres |
+| `strength_m` | raise_lower: +up / −down, metres |
+| `target_height_m` | flatten target, metres |
+| `falloff` | `smooth` \| `linear` \| `constant` |
+| `iterations` | smooth passes |
+
+Surface-only for now; the op record is extensible so a future **volumetric**
+layer (caves/overhangs via voxel/SDF) can add op types without changing the
+transport.
+
+### 7.2 Endpoints
+
+| Method | Path | Body / Returns |
+|--------|------|----------------|
+| `POST` | `/edit` | EditOp → `{op_id, affected:[tile…], manifests:[…]}` |
+| `POST` | `/edit/undo` | → `{undone:op_id, affected:[tile…]}` |
+| `GET`  | `/tile/{l}/{x}/{y}/edits` | ops affecting that tile (for replay/inspection) |
+
+After an edit, affected tiles' `content_hash` changes; a client may compare
+hashes to detect tiles it should refetch. The UE client applies the brush to the
+live mesh immediately for instant feedback, and the next stream-in reconciles to
+the authoritative composited tile.
 
 ## 6. Versioning
 
