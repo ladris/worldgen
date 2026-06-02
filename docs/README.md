@@ -28,6 +28,7 @@ Start here, then follow the path that fits you.
   branching/PR conventions, extension points (add a provider / edit-op).
 - **[GOOD_FIRST_ISSUES](GOOD_FIRST_ISSUES.md)** — curated starter tasks.
 - **[CODE_OF_CONDUCT](../CODE_OF_CONDUCT.md)** — community expectations.
+- **[SECURITY](../SECURITY.md)** — threat model and how to report vulnerabilities.
 - **[CHANGELOG](../CHANGELOG.md)** — what's landed.
 
 ## Legacy
